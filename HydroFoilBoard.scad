@@ -113,6 +113,8 @@ af_vec_path_root = airfoil_E818_path();
 af_vec_path_mid = airfoil_E818_path();
 af_vec_path_tip = airfoil_E818_path();
 
+
+
 // Airfoil slice data
 af_vec_slice = airfoil_E818_slice();
 
@@ -143,6 +145,27 @@ module MidAirfoilPolygon() {
 module TipAirfoilPolygon() {
     airfoil_E818();
 }
+
+// AIRFOIL PATH FUNCTIONS FOR BOSL2 SKIN
+// These functions return airfoil path data that can be used with BOSL2's skin() function
+
+/**
+ * Returns the root airfoil path as a 2D point array
+ * Suitable for use with BOSL2 skin() function
+ */
+function RootAirfoilPath() = airfoil_E818_path();
+
+/**
+ * Returns the mid airfoil path as a 2D point array
+ * Suitable for use with BOSL2 skin() function
+ */
+function MidAirfoilPath() = airfoil_E818_path();
+
+/**
+ * Returns the tip airfoil path as a 2D point array
+ * Suitable for use with BOSL2 skin() function
+ */
+function TipAirfoilPath() = airfoil_E818_path();
 
 // CARBON SPAR SYSTEM
 // Function to create a new spar configuration
