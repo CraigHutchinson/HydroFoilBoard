@@ -86,6 +86,41 @@ function ApplyWashoutToPath(path, index, current_chord_mm, wing_sections) =
     ) rotated_path;
     
 /**
+ * Calculate both anhedral angle and y-offset at a given wing position (simplified linear curve)
+ * @param z_pos - Current position along the wing span (0 to wing_mm)
+ * @param wing_mm - Total wing half-span length
+ * @param anhedral_degrees - Maximum anhedral angle at wing tip
+ * @param start_percentage - Where anhedral starts (percentage from root)
+ * @return [angle, y_offset] - Array containing both angle and y-offset
+ */
+function AnhedralAtPosition(z_pos, wing_mm, anhedral_degrees, start_percentage) =
+    let(
+        // Convert z_pos to percentage of wing span
+        z_pos_percentage = (wing_mm > 0) ? (z_pos / wing_mm) * 100 : 0,
+        
+        // Calculate progress from start percentage to tip (100%)
+        progress = (z_pos_percentage <= start_percentage) ? 0 : 
+                   (z_pos_percentage - start_percentage) / (100 - start_percentage),
+        
+        // Calculate the anhedral span in mm
+        anhedral_span_mm = wing_mm * (100 - start_percentage) / 100,
+        
+        // For a given final angle, calculate the required y-offset at tip
+        // tan(final_angle) = total_y_offset / anhedral_span
+        // So total_y_offset = anhedral_span * tan(final_angle)
+        total_y_offset_at_tip = anhedral_span_mm * tan(anhedral_degrees),
+        
+        // Current angle is the instantaneous slope angle at this position
+        // For a smooth arc ending at final_angle, use quadratic progression
+        angle = progress * progress * anhedral_degrees,
+        
+        // Y-offset follows the arc equation: y = (total_offset) * (3*t² - 2*t³)
+        // This creates a smooth S-curve that starts with zero slope and ends at the correct angle
+        smooth_progress = 3 * progress * progress - 2 * progress * progress * progress,
+        y_offset = (progress <= 0) ? 0 : -total_y_offset_at_tip * smooth_progress
+    ) [angle, y_offset];
+    
+/**
  * Main wing creation module
  * Generates the complete wing using BOSL2 skin() function
  */
@@ -96,8 +131,28 @@ module CreateWing() {
         // Create wing profiles for each section
         profiles = [
             for (i = [0:wing_sections]) let(
-                z_pos = (wing_mode == 1) ? wing_section_mm * i : f(i, wing_sections, wing_mm)
-            ) path3d(WingSlicePath(i, z_pos, wing_sections), z_pos)
+                z_pos = (wing_mode == 1) ? wing_section_mm * i : f(i, wing_sections, wing_mm),
+                
+                // Calculate anhedral parameters for this position
+                anhedral_data = AnhedralAtPosition(z_pos, wing_mm, Wing_Anhedral_Degrees, 
+                                                 Wing_Anhedral_Start_At_Percentage),
+                anhedral_angle = anhedral_data[0],
+                anhedral_y_offset = anhedral_data[1],
+                
+                // Get the base wing slice path
+                base_path = WingSlicePath(i, z_pos, wing_sections),
+                
+                // Create 3D path first
+                path_3d = path3d(base_path, z_pos),
+                
+                // Apply anhedral rotation around x-axis (rotate the 3D airfoil section)
+                rotated_path_3d = (anhedral_angle != 0) ? 
+                    xrot(anhedral_angle, p=path_3d) : path_3d,
+                
+                // Apply anhedral y-offset using BOSL2 transform
+                final_path = (anhedral_y_offset != 0) ?
+                    move([0, anhedral_y_offset, 0], p=rotated_path_3d) : rotated_path_3d
+            ) final_path
         ];
         
         // Create the wing surface using BOSL2 skin() function
