@@ -60,9 +60,10 @@ wing_center_line_perc = 90; // [0:100]
 
 // Wing anhedral settings
 // Angle of anhedral at tip (degrees)
-wing_anhedral_deg = 1; // [0:0.5:10]
+Wing_Anhedral_Degrees = 1; // [0:0.5:10]
 // Where anhedral starts (percentage from root)
-wing_anhedral_start_perc = 50; // [0:100]
+Wing_Anhedral_Start_Percentage = 50; // [0:100]
+Wing_Anhedral_Transition_Percentage = 5; // [0:100]
 
 /* [Airfoil Settings] */
 // Where to change to center airfoil (100 = off)
