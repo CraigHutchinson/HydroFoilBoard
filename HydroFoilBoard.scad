@@ -44,7 +44,7 @@ wing_chord = wing_span / wing_aspectratio; // TODO: PNG 1150 has 180mm chord, de
 
 // Wing dimensions
 // Number of wing sections (more = higher resolution)
-wing_sections = $preview ? 20 : 75; // [10:5:150]
+wing_sections = $preview ? 20 : 100; // [10:5:150]
 wing_mm = (wing_span / 2) * Build_Scale;         // Wing length in mm (half span)
 wing_root_chord_mm = wing_chord * Build_Scale;   // Root chord length in mm
 // Wing tip chord length in mm (not relevant for elliptic wing)
@@ -112,8 +112,6 @@ include <lib/openscad-airfoil/e/e818.scad>
 af_vec_path_root = airfoil_E818_path();
 af_vec_path_mid = airfoil_E818_path();
 af_vec_path_tip = airfoil_E818_path();
-
-
 
 // Airfoil slice data
 af_vec_slice = airfoil_E818_slice();
