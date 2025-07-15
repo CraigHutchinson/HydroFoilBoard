@@ -81,20 +81,8 @@ function ApplyWashoutToPath(path, index, current_chord_mm, wing_sections) =
         washout_deg_amount = (washout_start_point - index) * washout_deg_frac,
         rotate_point = current_chord_mm * (washout_pivot_perc / 100),
         
-        // Apply 2D rotation around the pivot point
-        rotated_path = [for (pt = path) 
-            let(
-                // Translate to rotate around pivot point
-                translated_pt = [pt[0] - rotate_point, pt[1]],
-                // Apply rotation
-                rotated_pt = [
-                    translated_pt[0] * cos(washout_deg_amount) - translated_pt[1] * sin(washout_deg_amount),
-                    translated_pt[0] * sin(washout_deg_amount) + translated_pt[1] * cos(washout_deg_amount)
-                ],
-                // Translate back
-                final_pt = [rotated_pt[0] + rotate_point, rotated_pt[1]]
-            ) final_pt
-        ]
+        // Apply 2D rotation around the pivot point using BOSL2
+        rotated_path = zrot(washout_deg_amount, p=path, cp=[rotate_point, 0])
     ) rotated_path;
     
 /**
