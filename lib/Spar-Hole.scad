@@ -5,12 +5,14 @@ module CreateSparHole( spar )
 
     translate([ 0, spar_hole_offset(spar), -0.01 ]) union()
     {
-    if ( for_vase )
-        translate([ spar_hole_perc(spar) / 100 * wing_root_chord_mm, 0, 0 ]) # difference()
+        if ( Design_For_VaseMode )
         {
-            translate([ 0, spar_hole_size(spar) / 2 - (slice_gap_width/2), 0 ]) cube([ slice_gap_width, 50, spar_hole_length(spar) + 10 ]);
+            translate([ spar_hole_perc(spar) / 100 * wing_root_chord_mm, 0, 0 ]) # difference()
+            {
+                translate([ 0, spar_hole_size(spar) / 2 - (slice_gap_width/2), 0 ]) cube([ slice_gap_width, 50, spar_hole_length(spar) + 10 ]);
 
-            translate([ -5, spar_hole_size(spar) / 2, spar_hole_length(spar) ]) rotate([ 35, 0, 0 ]) cube([ 10, 50, 20 ]);
+                translate([ -5, spar_hole_size(spar) / 2, spar_hole_length(spar) ]) rotate([ 35, 0, 0 ]) cube([ 10, 50, 20 ]);
+            }
         }
 
         color("red") translate([ spar_hole_perc(spar) / 100 * wing_root_chord_mm, 0, 0 ])
@@ -28,7 +30,9 @@ module CreateSparVoid( spar )
             cylinder(h = spar_hole_length(spar), r = spar_hole_size(spar) / 2 + (spar_hole_void_clearance / 2));
         color("brown") 
         translate([ spar_hole_perc(spar) / 100 * wing_root_chord_mm - ((spar_hole_size(spar) + spar_hole_void_clearance)/2), 0, 0 ])
-        if ( for_vase )
-        cube([ spar_hole_size(spar) + spar_hole_void_clearance, 100, spar_hole_length(spar) ]);
+        if ( Design_For_VaseMode )
+        {
+            cube([ spar_hole_size(spar) + spar_hole_void_clearance, 100, spar_hole_length(spar) ]);
+        }
     }
   }
