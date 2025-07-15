@@ -58,12 +58,15 @@ wing_eliptic_pow = 1.5; // [1.0:0.1:3.0]
 // Percentage from leading edge for wing center line
 wing_center_line_perc = 90; // [0:100]
 
-// Wing anhedral settings
-// Angle of anhedral at tip (degrees)
+// Wing anhedral settings (degrees)
+// This defines the angle of the anhedral at the tip of the wing
 Wing_Anhedral_Degrees = 1; // [0:0.5:10]
 // Where anhedral starts (percentage from root)
-Wing_Anhedral_Start_Percentage = 50; // [0:100]
-Wing_Anhedral_Transition_Percentage = 5; // [0:100]
+// This defines where the anhedral starts along the span
+Wing_Anhedral_Transition_At = 50; // [0:100]
+// Radius of anhedral transition as percentage of wing span
+// This defines how smoothly the anhedral transitions from root to tip
+Wing_Anhedral_Transition_PercentageRadius = 5; // [0:100]
 
 /* [Airfoil Settings] */
 // Where to change to center airfoil (100 = off)
