@@ -119,11 +119,11 @@ af_vec_path_tip = airfoil_E818_path();
 af_vec_slice = airfoil_E818_slice();
 
 // Surface line vectors
-af_vec_top = [for (i = af_vec_slice) [i.x, i.y]];       // Top surface line
-af_vec_bottom = [for (i = af_vec_slice) [i.x, i.z]];    // Bottom surface line
+//af_vec_top = [for (i = af_vec_slice) [i.x, i.y]];       // Top surface line
+//af_vec_bottom = [for (i = af_vec_slice) [i.x, i.z]];    // Bottom surface line
 
 // Mean camber line - midline halfway between top and bottom surfaces
-af_vec_mean_camber = [for (i = [0 : len(af_vec_top) - 1]) (af_vec_top[i] + af_vec_bottom[i]) / 2];
+af_vec_mean_camber = [for (i = af_vec_slice) [i.x, (i.y + i.z) / 2]];
 
 // Airfoil bounding box
 af_bbox = airfoil_E818_range();
@@ -155,11 +155,11 @@ function TipAirfoilPath() = af_vec_path_tip;
 // diam: Size of the spar hole
 // length: Length of the spar in mm
 // offset: Adjust where the spar is located
-function new_spar(perc, diam, length, offset) = [
+function new_spar(perc, diam, length, offset=0) = [
     perc,
     diam * Build_Scale,
     length * Build_Scale,
-    offset * Build_Scale
+    calculate_spar_offset_at_chord_position(perc) * Build_Scale
 ];
 
 // Spar accessor functions
@@ -169,13 +169,13 @@ function spar_hole_length(spar) = spar[2];
 function spar_hole_offset(spar) = spar[3];
 
 // Spar hole configurations
-// TODO: Use af_vec_mean_camber for offset calculations
+// Uses calculated offsets based on mean camber line for optimal structural positioning
 spar_holes = [
-    new_spar(15, 4.0, 250, 0.25),
-    new_spar(30, 4.0, 400, 0.75),
-    new_spar(45, 5.0, 450, 1.25),
-    new_spar(60, 5.0, 450, 1.75),
-    new_spar(75, 4.0, 400, 2.0)
+    new_spar(15, 4.0, 250),
+    new_spar(30, 4.0, 400),
+    new_spar(45, 5.0, 450),
+    new_spar(60, 5.0, 450),
+    new_spar(75, 4.0, 400)
 ];
 
 spar_hole_void_clearance = 0.0;  // Clearance for spar to grid interface (at least double extrusion width)
@@ -264,3 +264,24 @@ if ($preview && Build_Preview) {
         }
     }
 }
+
+// CARBON SPAR SYSTEM
+// Function to calculate the ideal spar offset based on mean camber line
+// perc: Percentage from leading edge (0-100)
+// Returns the y-offset at that chord position for optimal structural positioning
+function calculate_spar_offset_at_chord_position(perc) = 
+    let(
+        // Since data is sorted by x-coordinate, find the first point >= target
+        target_x = perc,
+        
+        // Simple linear search for the closest point (efficient for small datasets)
+        closest_index = 
+            target_x <= af_vec_mean_camber[0][0] ? 0 :
+            target_x >= af_vec_mean_camber[len(af_vec_mean_camber)-1][0] ? len(af_vec_mean_camber)-1 :
+            // Find first point where x >= target_x
+            [for (i = [0 : len(af_vec_mean_camber) - 1]) 
+                if (af_vec_mean_camber[i][0] >= target_x) i][0],
+        
+        // Get the y-coordinate at that position
+        y_offset = af_vec_mean_camber[closest_index][1]
+    ) y_offset;
