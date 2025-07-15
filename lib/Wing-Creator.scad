@@ -141,7 +141,6 @@ module WingSlice(index, z_location, wing_sections) {
         }
 }
 
-
 /**
  * Returns the appropriate airfoil path based on wing position
  * @param index - Current slice index along the wing span
@@ -150,12 +149,17 @@ module WingSlice(index, z_location, wing_sections) {
 function GetAirfoilPath(index, wing_sections) = 
     let(
         tip_airfoil_change_index = wing_sections * (tip_airfoil_change_perc / 100),
-        center_airfoil_change_index = wing_sections * (center_airfoil_change_perc / 100)
+        center_airfoil_change_index = wing_sections * (center_airfoil_change_perc / 100),
+        
+        // Get base airfoil path
+        base_path = (index > tip_airfoil_change_index) ? TipAirfoilPath() :
+                   (index > center_airfoil_change_index) ? MidAirfoilPath() :
+                   RootAirfoilPath(),
+        
+        // Simplify path for preview mode using BOSL2 resample_path()
+        simplified_path = $preview ? resample_path(base_path, n=50, closed=true) : base_path
     )
-    // Return appropriate airfoil path based on position
-    (index > tip_airfoil_change_index) ? TipAirfoilPath() :
-    (index > center_airfoil_change_index) ? MidAirfoilPath() :
-    RootAirfoilPath();
+    simplified_path;
 
 /**
  * Returns a scaled and positioned airfoil path for a wing slice
@@ -240,6 +244,6 @@ module CreateWing() {
         ];
         
         // Create the wing surface using BOSL2 skin() function
-        skin(profiles, slices=0, refine=1, method="reindex", sampling="segment");
+        skin(profiles, slices=0, refine=1, method="direct", sampling="segment");
     }
 }
