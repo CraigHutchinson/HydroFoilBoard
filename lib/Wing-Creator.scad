@@ -7,6 +7,7 @@
  * - Elliptical and tapered planforms
  * - Adjustable chord lengths and transitions
  * 
+ * Uses 2D airfoil polygons and hull operations for efficient wing generation
  * Depends on BOSL2 library for advanced geometric operations
  */
 
@@ -34,9 +35,9 @@ module WashoutSlice(index, current_chord_mm, wing_sections) {
     // Determine pivot point for rotation based on chord percentage
     rotate_point = current_chord_mm * (washout_pivot_perc / 100);
 
-    // Apply washout rotation around the pivot point
+    // Apply washout rotation around the pivot point (2D rotation around Z axis)
     translate([rotate_point, 0, 0]) 
-        rotate(washout_deg_amount) 
+        rotate([0, 0, washout_deg_amount]) 
             translate([-rotate_point, 0, 0])
                 Slice(index, wing_sections);
 }
@@ -108,11 +109,11 @@ module Slice(index, wing_sections) {
 }
 
 /**
- * Creates a single wing slice at a specific position
- * Handles scaling, positioning, and optional washout application
+ * Creates a 2D wing slice polygon at a specific position
+ * Returns a pure 2D polygon for use with BOSL2 operations
  * 
  * @param index - Current slice index along the wing span
- * @param z_location - Z position of this slice along the wing
+ * @param z_location - Z position of this slice along the wing (for calculations only)
  * @param wing_sections - Total number of sections in the wing
  */
 module WingSlice(index, z_location, wing_sections) {
@@ -124,59 +125,48 @@ module WingSlice(index, z_location, wing_sections) {
     // Scale factor based on chord length (normalized to 100mm base)
     scale_factor = current_chord_mm / 100;
 
-    // Position and scale the airfoil slice
-    translate([0, 0, z_location]) 
-        linear_extrude(height = 0.00000001, slices = 0)
-            translate([-wing_center_line_perc / 100 * current_chord_mm, 0, 0])
-                scale([scale_factor, scale_factor, 1]) {
-                    
-                    // Apply washout if conditions are met
-                    if (washout_deg > 0 && 
-                        ((wing_mode > 1 && index > WashoutStart(0, wing_sections, washout_start, wing_mm)) ||
-                         (wing_mode == 1 && index > (wing_sections * (washout_start / 100))))) {
-                        WashoutSlice(index, current_chord_mm, wing_sections);
-                    }
-                    else {
-                        Slice(index, wing_sections);
-                    }
-                }
+    // Scale and position the 2D airfoil polygon
+    translate([-wing_center_line_perc / 100 * current_chord_mm, 0, 0])
+        scale([scale_factor, scale_factor, 1]) {
+            
+            // Apply washout if conditions are met
+            if (washout_deg > 0 && 
+                ((wing_mode > 1 && index > WashoutStart(0, wing_sections, washout_start, wing_mm)) ||
+                 (wing_mode == 1 && index > (wing_sections * (washout_start / 100))))) {
+                WashoutSlice(index, current_chord_mm, wing_sections);
+            }
+            else {
+                Slice(index, wing_sections);
+            }
+        }
 }
+
 
 /**
  * Main wing creation module
- * Generates the complete wing by connecting multiple slices
- * 
- * @param low_res - Optional parameter to reduce resolution for faster preview
+ * Generates the complete wing using hull operations between adjacent slices
  */
-module CreateWing(low_res = false) {
-    // Adjust resolution for preview or final rendering
-    wing_sections = low_res ? wing_sections / 3 : wing_sections;
+module CreateWing() {
     wing_section_mm = wing_mm / wing_sections;
     
-    // Wing mode 1: Linear distribution using chain_hull
-    if (wing_mode == 1) {
-        translate([wing_root_chord_mm * (wing_center_line_perc / 100), 0, 0])
-            chain_hull() {
-                for (i = [0:wing_sections]) {
-                    WingSlice(i, wing_section_mm * i, wing_sections);
-                }
-            }
-    }
-    // Other wing modes: Use elliptical or custom distribution
-    else {
-        translate([wing_root_chord_mm * (wing_center_line_perc / 100), 0, 0]) 
-            union() {
-                for (i = [0:wing_sections]) {
-                    // Calculate positions using distribution function
-                    pos = f(i, wing_sections, wing_mm);
-                    npos = f(i + 1, wing_sections, wing_mm);
+    translate([wing_root_chord_mm * (wing_center_line_perc / 100), 0, 0]) {
+        union() {
+            for (i = [0:wing_sections-1]) {
+                // Calculate Z positions based on wing mode
+                z_start = (wing_mode == 1) ? wing_section_mm * i : f(i, wing_sections, wing_mm);
+                z_end = (wing_mode == 1) ? wing_section_mm * (i + 1) : f(i + 1, wing_sections, wing_mm);
+                
+                // Create a swept section between two adjacent slices
+                hull() {
+                    translate([0, 0, z_start])
+                        linear_extrude(height = 0.01, center = true)
+                            WingSlice(i, z_start, wing_sections);
                     
-                    // Create hull between adjacent slices
-                    hull() {
-                        WingSlice(i, pos, wing_sections);
-                        WingSlice(i + 1, npos, wing_sections);
-                    }
+                    translate([0, 0, z_end])
+                        linear_extrude(height = 0.01, center = true)
+                            WingSlice(i + 1, z_end, wing_sections);
                 }
             }
+        }
     }
 }
