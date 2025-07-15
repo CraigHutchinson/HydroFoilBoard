@@ -166,7 +166,7 @@ function spar_hole_offset(spar) = spar[3];
 // Spar hole configurations
 // TODO: Use af_vec_mean_camber for offset calculations
 spar_holes = [
-    new_spar(15, 3.0, 350, 0.25),
+    new_spar(15, 4.0, 250, 0.25),
     new_spar(30, 4.0, 400, 0.75),
     new_spar(45, 5.0, 450, 1.25),
     new_spar(60, 5.0, 450, 1.75),
