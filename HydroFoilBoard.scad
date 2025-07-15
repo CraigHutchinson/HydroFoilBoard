@@ -159,7 +159,7 @@ function new_spar(perc, diam, length, offset=0) = [
     perc,
     diam * Build_Scale,
     length * Build_Scale,
-    calculate_spar_offset_at_chord_position(perc) * Build_Scale
+    (calculate_spar_offset_at_chord_position(perc)* WingSliceScaleFactorByPosition(0)) + offset * Build_Scale 
 ];
 
 // Spar accessor functions
@@ -171,11 +171,11 @@ function spar_hole_offset(spar) = spar[3];
 // Spar hole configurations
 // Uses calculated offsets based on mean camber line for optimal structural positioning
 spar_holes = [
-    new_spar(15, 4.0, 250),
-    new_spar(30, 4.0, 400),
-    new_spar(45, 5.0, 450),
-    new_spar(60, 5.0, 450),
-    new_spar(75, 4.0, 400)
+    new_spar(15, 4.0, 250, 0),
+    new_spar(30, 4.0, 400, 0),
+    new_spar(45, 5.0, 400, -1.25),
+    new_spar(60, 5.0, 400, -1.25),
+    new_spar(75, 4.0, 400, -1.0)
 ];
 
 spar_hole_void_clearance = 0.0;  // Clearance for spar to grid interface (at least double extrusion width)

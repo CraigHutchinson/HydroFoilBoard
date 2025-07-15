@@ -1,7 +1,5 @@
 /*
  * Wing Creator Module
- * 
- * This module creates parametric hydrofoil wings using BOSL2 skin() function.
  * Supports multiple airfoil sections with washout (twist) for stability.
  * 
  * Uses functional approach with path-based operations for efficiency.
@@ -31,6 +29,64 @@ function GetAirfoilPath(index, wing_sections) =
     simplified_path;
 
 /**
+ * Calculate the chord length at a specific wing position using index (wing_mode == 1)
+ * @param index - Current slice index along the wing span
+ * @param wing_sections - Total number of sections in the wing
+ * @return current_chord_mm - Chord length in millimeters at this position
+ */
+function WingSliceChordLengthByIndex(index, wing_sections) = 
+    ChordLengthAtIndex(index, wing_sections);
+
+/**
+ * Calculate the chord length at a specific wing position using z_location (wing_mode > 1)
+ * @param z_location - Z position of this slice along the wing
+ * @return current_chord_mm - Chord length in millimeters at this position
+ */
+function WingSliceChordLengthByPosition(z_location) = 
+    ChordLengthAtEllipsePosition((wing_mm + 0.1), wing_root_chord_mm, z_location);
+
+/**
+ * Calculate the chord length at a specific wing position (unified interface)
+ * @param index - Current slice index along the wing span
+ * @param z_location - Z position of this slice along the wing
+ * @param wing_sections - Total number of sections in the wing
+ * @return current_chord_mm - Chord length in millimeters at this position
+ */
+function WingSliceChordLength(index, z_location, wing_sections) = 
+    (wing_mode == 1) 
+        ? WingSliceChordLengthByIndex(index, wing_sections)
+        : WingSliceChordLengthByPosition(z_location);
+
+/**
+ * Calculate the scale factor for a wing slice using index (wing_mode == 1)
+ * @param index - Current slice index along the wing span
+ * @param wing_sections - Total number of sections in the wing
+ * @return scale_factor - Scaling factor relative to 100mm base chord
+ */
+function WingSliceScaleFactorByIndex(index, wing_sections) = 
+    WingSliceChordLengthByIndex(index, wing_sections) / 100;
+
+/**
+ * Calculate the scale factor for a wing slice using z_location (wing_mode > 1)
+ * @param z_location - Z position of this slice along the wing
+ * @return scale_factor - Scaling factor relative to 100mm base chord
+ */
+function WingSliceScaleFactorByPosition(z_location) = 
+    WingSliceChordLengthByPosition(z_location) / 100;
+
+/**
+ * Calculate the scale factor for a wing slice (unified interface)
+ * @param index - Current slice index along the wing span
+ * @param z_location - Z position of this slice along the wing
+ * @param wing_sections - Total number of sections in the wing
+ * @return scale_factor - Scaling factor relative to 100mm base chord
+ */
+function WingSliceScaleFactor(index, z_location, wing_sections) = 
+    (wing_mode == 1) 
+        ? WingSliceScaleFactorByIndex(index, wing_sections)
+        : WingSliceScaleFactorByPosition(z_location);
+
+/**
  * Returns a scaled and positioned airfoil path for a wing slice
  * @param index - Current slice index along the wing span
  * @param z_location - Z position of this slice along the wing
@@ -38,22 +94,16 @@ function GetAirfoilPath(index, wing_sections) =
  */
 function WingSlicePath(index, z_location, wing_sections) = 
     let(
-        // Calculate chord length at this position based on wing mode
-        current_chord_mm = (wing_mode == 1) 
-            ? ChordLengthAtIndex(index, wing_sections)
-            : ChordLengthAtEllipsePosition((wing_mm + 0.1), wing_root_chord_mm, z_location),
-        
-        // Scale factor based on chord length (normalized to 100mm base)
-        scale_factor = current_chord_mm / 100,
+        // Calculate scale factor and chord length using helper functions
+        scale_factor = WingSliceScaleFactor(index, z_location, wing_sections),
+        current_chord_mm = WingSliceChordLength(index, z_location, wing_sections),
         
         // Get the base airfoil path
         base_path = GetAirfoilPath(index, wing_sections),
         
-        // Apply scaling and translation
-        scaled_path = [for (pt = base_path) 
-            [pt[0] * scale_factor - wing_center_line_perc / 100 * current_chord_mm, 
-             pt[1] * scale_factor]
-        ],
+        // Apply scaling and translation using BOSL2 transforms
+        scaled_path = move([-wing_center_line_perc / 100 * current_chord_mm, 0], 
+                          p=scale([scale_factor, scale_factor], p=base_path)),
         
         // Apply washout rotation if needed
         final_path = (washout_deg > 0 && 
