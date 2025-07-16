@@ -37,10 +37,24 @@ slice_ext_width = 0.6; // [0.1:0.1:2.0]
 slice_gap_width = 0.02; // [0.01:0.01:0.5] 
 
 /* [Wing Geometry Settings] */
-// Based on Foil Axis PNG 1150 specifications
+// Based on AXIS PNG 1150 specifications
 wing_span = 1150;               // Total wing span in mm
 wing_aspectratio = 7.72;        // Wing aspect ratio
-wing_chord = wing_span / wing_aspectratio; // TODO: PNG 1150 has 180mm chord, deeper in middle
+wing_area = 1713;               // Wing area in cm²
+wing_chord = wing_span / wing_aspectratio; // PNG 1150 has 149mm avg chord (1150/7.72)
+
+/* [Fuselage Geometry Settings] */
+// Based on AXIS PNG 1150 fuselage specifications
+fuselage_type = 1;              // [1:"Standard 765mm", 2:"Short 685mm", 3:"Ultrashort 605mm", 4:"Crazyshort 525mm"]
+fuselage_width = 19;            // Fuselage width (horizontal dimension) in mm
+fuselage_height = 12;           // Fuselage height (vertical dimension) in mm
+fuselage_taper_ratio = 0.8;     // Taper ratio from root to tip
+
+// Fuselage connection specifications
+mast_connection_diameter = 19;   // Mast connection diameter in mm (AXIS 19mm standard)
+mast_connection_length = 100;    // Mast connection length in mm
+spar_through_fuselage = true;    // Wing spars pass through fuselage (no separate bolts)
+stabilizer_connection_spacing = 50; // Distance between stabilizer mounting bolts in mm
 
 // Wing dimensions
 // Number of wing sections (more = higher resolution)
@@ -159,7 +173,7 @@ function new_spar(perc, diam, length, offset=0) = [
     perc,
     diam * Build_Scale,
     length * Build_Scale,
-    (calculate_spar_offset_at_chord_position(perc)* WingSliceScaleFactorByPosition(0)) + offset * Build_Scale 
+    ((calculate_spar_offset_at_chord_position(perc)* WingSliceScaleFactorByPosition(0)) + offset) * Build_Scale 
 ];
 
 // Spar accessor functions
@@ -182,6 +196,7 @@ spar_hole_void_clearance = 0.0;  // Clearance for spar to grid interface (at lea
 
 // LIBRARY INCLUDES
 
+include <lib/Fuselage.scad>
 include <lib/Grid-Structure.scad>
 include <lib/Grid-Void-Creator.scad>
 include <lib/Helpers.scad>
@@ -229,7 +244,7 @@ module main_wing() {
         }
         union() {
             for (spar = spar_holes) {
-                CreateSparHole(spar);
+              #  CreateSparHole(spar);
             }
         }
     }
@@ -242,6 +257,28 @@ if (wing_sections * 0.2 < slice_transisions) {
 } else if (center_airfoil_change_perc < 0 || center_airfoil_change_perc > 100) {
     echo("ERROR: center_airfoil_change_perc has to be in a range of 0-100.");
 }
+
+// Display PNG 1150 specifications
+echo(str("=== AXIS PNG 1150 Specifications ==="));
+echo(str("Wing Span: ", wing_span, "mm"));
+echo(str("Wing Area: ", wing_area, "cm²"));
+echo(str("Aspect Ratio: ", wing_aspectratio));
+echo(str("Average Chord: ", wing_chord, "mm"));
+echo(str("Fuselage Length: ", get_fuselage_length(), "mm"));
+echo(str("Fuselage Type: ", 
+    fuselage_type == 1 ? "Standard (765mm)" :
+    fuselage_type == 2 ? "Short (685mm)" :
+    fuselage_type == 3 ? "Ultrashort (605mm)" :
+    "Crazyshort (525mm)"
+));
+echo(str("Fuselage Width: ", fuselage_width, "mm"));
+echo(str("Fuselage Height: ", fuselage_height, "mm"));
+echo(str("Spar Through Design: ", spar_through_fuselage ? "Yes" : "No"));
+echo(str("Number of Spars: ", len(spar_holes)));
+echo(str("Build Scale: ", Build_Scale, "x"));
+echo(str("Scaled Wing Half-Span: ", wing_mm, "mm"));
+echo(str("====================================="));
+
 /*else if (add_inner_grid == false && spar_hole == true) {
     echo("ERROR: add_inner_grid needs to be true for spar_hole to be true");
 }*/
@@ -249,8 +286,9 @@ if (wing_sections * 0.2 < slice_transisions) {
 // Main execution
 if ($preview && Build_Preview) {
     // Preview mode - show complete model
-    main_wing();
-    zflip() main_wing();
+   % main_wing();
+   % zflip() main_wing();
+    Fuselage();
 } else {
     // Render mode - split into printable parts
     splits = ceil(wing_mm / (250 * Build_Scale));
@@ -285,3 +323,15 @@ function calculate_spar_offset_at_chord_position(perc) =
         // Get the y-coordinate at that position
         y_offset = af_vec_mean_camber[closest_index][1]
     ) y_offset;
+
+// Function to calculate wing slice scale factor based on position
+function WingSliceScaleFactorByPosition(position_mm) = 
+    let(
+        // Calculate chord at this position using elliptic distribution
+        current_chord = (wing_mode == 1) 
+            ? ChordLengthAtPosition(position_mm)
+            : ChordLengthAtEllipsePosition(wing_mm, wing_root_chord_mm, position_mm),
+        
+        // Scale factor normalized to 100mm base chord
+        scale_factor = current_chord / 100
+    ) scale_factor;
