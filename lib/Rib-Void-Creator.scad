@@ -8,7 +8,7 @@ rib_void_offset=15;
 
 module CreateRibVoids()
 {
-    void_length = Main_Wing_MM-tip_offset;
+    void_length = Main_Wing_mm-tip_offset;
 
     color("black")
 
@@ -53,7 +53,7 @@ module CreateRibVoids2()
             for (i = [0:spar_num]) {
                 translate([space_bet_spars*i+(rib_void_offset/2),-Main_Wing_Root_Chord_MM/3/2,0])
                 color("orange")
-                cube([space_bet_spars-rib_void_offset, Main_Wing_Root_Chord_MM/3, Main_Wing_MM]);
+                cube([space_bet_spars-rib_void_offset, Main_Wing_Root_Chord_MM/3, Main_Wing_mm]);
             }
 
             translate([0,0,rib_offset])

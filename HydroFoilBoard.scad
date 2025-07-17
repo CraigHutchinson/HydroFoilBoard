@@ -53,7 +53,7 @@ Main_Wing_chord = Main_Wing_span / Main_Wing_aspectratio; // PNG 1150 has 149mm 
 // Main Wing dimensions
 // Number of main wing sections (more = higher resolution)
 Main_Wing_Sections = $preview ? 20 : 100; // [10:5:150]
-Main_Wing_MM = (Main_Wing_span / 2) * Build_Scale;         // Main wing length in mm (half span)
+Main_Wing_mm = (Main_Wing_span / 2) * Build_Scale;         // Main wing length in mm (half span)
 Main_Wing_Root_Chord_MM = Main_Wing_chord * Build_Scale;   // Root chord length in mm
 // Main wing tip chord length in mm (not relevant for elliptic wing)
 Main_Wing_Tip_Chord_MM = 50 * Build_Scale; // [10:5:200]
@@ -315,7 +315,7 @@ include <lib/Wing-Creator.scad>
 module CreateMainWing() {
     CreateWing(
         wing_sections = Main_Wing_Sections,
-        wing_mm = Main_Wing_MM,
+        wing_mm = Main_Wing_mm,
         root_chord_mm = Main_Wing_Root_Chord_MM,
         tip_chord_mm = Main_Wing_Tip_Chord_MM,
         wing_mode = Main_Wing_Mode,
@@ -365,9 +365,9 @@ module main_wing() {
                     difference() {
                         difference() {
                             if (grid_mode == 1) {
-                                StructureGrid(Main_Wing_MM, Main_Wing_Root_Chord_MM, grid_size_factor);
+                                StructureGrid(Main_Wing_mm, Main_Wing_Root_Chord_MM, grid_size_factor);
                             } else {
-                                StructureSparGrid(Main_Wing_MM, Main_Wing_Root_Chord_MM, grid_size_factor, spar_num, spar_offset,
+                                StructureSparGrid(Main_Wing_mm, Main_Wing_Root_Chord_MM, grid_size_factor, spar_num, spar_offset,
                                                   rib_num, rib_offset);
                             }
                             union() {
@@ -443,7 +443,7 @@ echo(str("Fuselage Height: ", fuselage_height, "mm"));
 echo(str("Spar Through Design: ", spar_through_fuselage ? "Yes" : "No"));
 echo(str("Number of Spars: ", len(spar_holes)));
 echo(str("Build Scale: ", Build_Scale, "x"));
-echo(str("Scaled Main Wing Half-Span: ", Main_Wing_MM, "mm"));
+echo(str("Scaled Main Wing Half-Span: ", Main_Wing_mm, "mm"));
 echo(str("Scaled Rear Wing Half-Span: ", Rear_Wing_mm, "mm"));
 echo(str("====================================="));
 
@@ -454,11 +454,13 @@ echo(str("====================================="));
 // Main execution
 if(Build_TestParts) {
     // Print the lower 1mm of each wing part
-    split_into_parts(Main_Wing_MM, Printer_BuildArea, Build_Scale, af_bbox, 5) main_wing();
+    split_into_parts(Main_Wing_mm, Printer_BuildArea, Build_Scale, af_bbox, 5) main_wing();
+
+    fwd(20) split_into_parts(Rear_Wing_mm, Printer_BuildArea, Build_Scale, af_bbox, 5) CreateRearWing();
     
-    fwd(20) yrot(90) left(Main_Wing_chord*Build_Scale/2+1)  split_into_parts(Main_Wing_MM, Printer_BuildArea, Build_Scale, af_bbox) intersection() { 
+    fwd(40) yrot(90) left(Main_Wing_chord*Build_Scale/2+1)  split_into_parts(Main_Wing_mm, Printer_BuildArea, Build_Scale, af_bbox) intersection() { 
         main_wing();
-        right(Main_Wing_chord*Build_Scale/2) cube([2,100, Main_Wing_MM*Build_Scale], anchor=BOTTOM+CENTER);
+        right(Main_Wing_chord*Build_Scale/2) cube([2,100, Main_Wing_mm*Build_Scale], anchor=BOTTOM+CENTER);
     }
 }
 else
@@ -478,7 +480,7 @@ else
 {
 
     // Render mode - split into printable parts
-    split_into_parts(Main_Wing_MM, Printer_BuildArea, Build_Scale, af_bbox) main_wing();
+    split_into_parts(Main_Wing_mm, Printer_BuildArea, Build_Scale, af_bbox) main_wing();
 }
 
 // CARBON SPAR SYSTEM
@@ -512,7 +514,7 @@ function MainWingSliceScaleFactorByPosition(position_mm) =
         // Calculate chord at this position using elliptic distribution
         current_chord = (Main_Wing_Mode == 1) 
             ? ChordLengthAtPosition(position_mm)
-            : ChordLengthAtEllipsePosition(Main_Wing_MM, Main_Wing_Root_Chord_MM, position_mm),
+            : ChordLengthAtEllipsePosition(Main_Wing_mm, Main_Wing_Root_Chord_MM, position_mm),
         
         // Scale factor normalized to 100mm base chord
         scale_factor = current_chord / 100

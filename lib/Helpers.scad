@@ -4,7 +4,7 @@ function ChordLengthAtIndex(index,
                                                  ((Main_Wing_Root_Chord_MM - Main_Wing_Tip_Chord_MM) / loc_wing_sections) * index;
 
 function ChordLengthAtPosition(length_from_root_mm) = Main_Wing_Root_Chord_MM - (Main_Wing_Root_Chord_MM - Main_Wing_Tip_Chord_MM) *
-                                                                               (length_from_root_mm / Main_Wing_MM);
+                                                                               (length_from_root_mm / Main_Wing_mm);
 
 // EaseInOut cubic function from t in [0,1] to eased progress [0,1]
 function easeInOutCubic(t) = 

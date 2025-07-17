@@ -79,7 +79,7 @@ module GridWashoutSlice(i, scale_factor, current_chord_mm, LE)
 {
 
     washout_start_point = (wing_mode == 1) ? (Main_Wing_Sections * (washout_start / 100))
-                                           : WashoutStart(0, Main_Wing_Sections, washout_start, Main_Wing_MM);
+                                           : WashoutStart(0, Main_Wing_Sections, washout_start, Main_Wing_mm);
     washout_deg_frac = washout_deg / (Main_Wing_Sections - washout_start_point);
     washout_deg_amount = (washout_start_point - i) * washout_deg_frac;
     rotate_point = current_chord_mm * (washout_pivot_perc / 100);
@@ -129,12 +129,12 @@ module GridESlice(i, scale_factor, LE)
 module GridSlice(z_location, i, LE)
 {
     current_chord_mm = (wing_mode == 1) ? ChordLengthAtIndex(i, Main_Wing_Sections)
-                                        : ChordLengthAtEllipsePosition(Main_Wing_MM, Main_Wing_Root_Chord_MM, z_location);
+                                        : ChordLengthAtEllipsePosition(Main_Wing_mm, Main_Wing_Root_Chord_MM, z_location);
 
     scale_factor = current_chord_mm / 100;
     translate([ 0, 0, z_location ]) translate([ -MainWing_Center_Line_Perc / 100 * current_chord_mm, 0, 0 ])
 
-        if (washout_deg > 0 && ((wing_mode > 1 && i > WashoutStart(0, Main_Wing_Sections, washout_start, Main_Wing_MM)) ||
+        if (washout_deg > 0 && ((wing_mode > 1 && i > WashoutStart(0, Main_Wing_Sections, washout_start, Main_Wing_mm)) ||
                                 (wing_mode == 1 && i > (Main_Wing_Sections * (washout_start / 100)))))
     {
         GridWashoutSlice(i, scale_factor, current_chord_mm, LE);
@@ -147,7 +147,7 @@ module GridSlice(z_location, i, LE)
 
 module CreateGridVoid()
 {
-    wing_section_mm = Main_Wing_MM / Main_Wing_Sections;
+    wing_section_mm = Main_Wing_mm / Main_Wing_Sections;
     if (wing_mode == 1)
     {
         translate([ Main_Wing_Root_Chord_MM * (MainWing_Center_Line_Perc / 100), 0, 0 ]) union()
@@ -184,8 +184,8 @@ module CreateGridVoid()
             {
                 for (i = [0:Main_Wing_Sections])
                 {
-                    pos = f(i, Main_Wing_Sections, Main_Wing_MM);
-                    npos = f((i + 1), Main_Wing_Sections, Main_Wing_MM);
+                    pos = f(i, Main_Wing_Sections, Main_Wing_mm);
+                    npos = f((i + 1), Main_Wing_Sections, Main_Wing_mm);
                     hull()
                     {
                         GridSlice(pos, i, true);
@@ -197,8 +197,8 @@ module CreateGridVoid()
             {
                 for (i = [0:Main_Wing_Sections])
                 {
-                    pos = f(i, Main_Wing_Sections, Main_Wing_MM);
-                    npos = f((i + 1), Main_Wing_Sections, Main_Wing_MM);
+                    pos = f(i, Main_Wing_Sections, Main_Wing_mm);
+                    npos = f((i + 1), Main_Wing_Sections, Main_Wing_mm);
                     hull()
                     {
                         GridSlice(pos, i, false);
