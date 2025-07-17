@@ -76,7 +76,7 @@ Wing_Anhedral_Start_At_Percentage = 50; // [0:100]
 
 /* [Rear Stabilizer Wing Geometry Settings] */
 // Based on typical hydrofoil proportions (20-25% of main wing area)
-Rear_Wing_Span = 300;                // Rear stabilizer span in mm (typical 25-30% of main span)
+Rear_Wing_Span = 340;                // Rear stabilizer span in mm (typical 25-30% of main span)
 Rear_Wing_Aspect = 4.0;         // Rear stabilizer aspect ratio (typically lower than main wing)
 Rear_Wing_Area = 428;                // Rear stabilizer area in cm² (25% of main wing area)
 Rear_Wing_Chord = Rear_Wing_Span / Rear_Wing_Aspect; // 75mm avg chord (300/4.0)
@@ -106,7 +106,7 @@ Rear_Wing_Anhedral_Start_At_Percentage = 60; // [0:100]
 /* [ Wing Position Settings] */
 
 // Rear wing positioning on fuselage
-Rear_Wing_position_from_main = 600; // Distance from main wing to rear wing in mm (typical 3-4x main chord)
+Rear_Wing_position_from_main = 650; // Distance from main wing to rear wing in mm (typical 3-4x main chord)
 Rear_Wing_vertical_offset = 0;       // Vertical offset of rear wing from main wing centerline in mm
 Rear_Wing_angle_offset = 0;          // Angle offset of rear wing relative to main wing in degrees (positive = nose up)
 
@@ -462,13 +462,17 @@ if(Build_TestParts) {
     }
 }
 else
-if ($preview && Preview_BuiltModel) {
+if ($preview && Preview_BuiltModel) { 
     // Preview mode - show complete model
-   % main_wing();
-   % zflip() main_wing();
-   % Rear_Wing();
-   % zflip() Rear_Wing();
-    Fuselage();
+   xrot(90){
+        main_wing();
+        zflip() main_wing();
+
+        Rear_Wing();
+        zflip() Rear_Wing();
+
+        Fuselage();
+   }
 }
 else 
 {
