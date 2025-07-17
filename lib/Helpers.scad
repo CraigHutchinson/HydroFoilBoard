@@ -34,3 +34,19 @@ function AirfoilHeightAtPosition(path, distance, tolerance = 0.5) =
 
 //Scales a path to the scale factor
 function scalePath(points, scaleFactor) = [for (p = points)[p[0] * scaleFactor, p[1] * scaleFactor]];        
+
+// Function to split a module into printable parts along the Z axis
+module split_into_parts( total_length, build_area, scale=1.0, bbox=af_bbox, print_height_mm=0) {
+    splits = ceil(total_length / (build_area.z * scale));
+    splits_length = total_length / splits;
+    // If print_height_mm > 0, only print up to that height from the bottom of each part
+    part_height = (print_height_mm > 0 && print_height_mm < splits_length) ? print_height_mm : splits_length;
+
+    for (i = [0:splits-1]) {
+        fwd(i * (bbox.w - bbox.z + (build_area.x / splits)))
+        intersection() {
+            down(i * splits_length) children();
+            cube([build_area.x, build_area.y, part_height], anchor=BOTTOM+LEFT);
+        }
+    }
+}

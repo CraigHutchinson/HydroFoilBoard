@@ -33,15 +33,29 @@ function fuselage_cross_section(position_ratio) =
         width = fuselage_width * taper_factor * Build_Scale,
         height = fuselage_height * taper_factor * Build_Scale,
         
-        // Create streamlined cross-section (elongated hexagon)
-        profile = [
-            [-width/2, 0],
-            [-width/4, height/2],
-            [width/4, height/2],
-            [width/2, 0],
-            [width/4, -height/2],
-            [-width/4, -height/2]
-        ]
+        fuselage_length = get_fuselage_length(),
+
+        // Wing section transition ratio (0 = square, 1 = streamlined)
+        wing_section_length = (wing_root_chord_mm) / fuselage_length,
+        
+        // Create profile that transitions from square to streamlined
+        profile = position_ratio < wing_section_length ?
+            // Square cross-section for wing section
+            [
+                [-width/2, -height/2],
+                [-width/2, height/2],
+                [width/2, height/2],
+                [width/2, -height/2]
+            ] :
+            // Interpolated profile transitioning to streamlined hexagon
+            [
+                [-width/2, 0],
+                [-width/4, height/2],
+                [width/4, height/2],
+                [width/2, 0],
+                [width/4, -height/2],
+                [-width/4, -height/2]
+            ]
     ) profile;
 
 /**
@@ -63,7 +77,7 @@ module Fuselage() {
     
     // Create the fuselage surface using BOSL2 skin() function
     difference() {
-        yrot(90) skin(profiles, slices=0, refine=1, method="direct", sampling="segment");
+        yrot(90) skin(profiles, slices=0, refine=1, method="reindex", sampling="segment");
         
         // Create spar holes through fuselage (penetrate Y-axis, span-wise)
         if (spar_through_fuselage) {
@@ -73,7 +87,7 @@ module Fuselage() {
                     spar_hole_offset(spar),
                     0
                 ]) {
-                  #  cylinder(d=spar_hole_size(spar) + (spar_hole_void_clearance * 2), 
+                    cylinder(d=spar_hole_size(spar) + (spar_hole_void_clearance * 2), 
                                 h=spar_hole_length(spar) * 2 * Build_Scale, center=true);
                     
                 }
@@ -82,7 +96,7 @@ module Fuselage() {
         
         // Create mast connection hole (penetrate Z-axis, vertical)
         translate([fuselage_length * 0.4, 0, 0]) {
-           # xrot(90) cylinder(d=mast_connection_diameter, h=mast_connection_length, center=true);
+            xrot(90) cylinder(d=mast_connection_diameter, h=mast_connection_length, center=true);
             
         }
     }

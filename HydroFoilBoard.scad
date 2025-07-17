@@ -12,18 +12,25 @@ include <bosl2/std.scad>
 
 /* [Hidden] */
 
+    Printer_BuildArea = [250, 250, 250]; // Printer build area in mm
+
 /* [Global Rendering Settings] */
 // 360deg/5(faceAngle) = 72 facets (affects performance and object smoothness)
 Render_Mode_Facet_Angle = 1; // [1:1:10]
 // Minimum facet size for rendering (NOTE: coarse value is udef for preview mode)
 Render_Mode_Facet_Size = 0.2; // [0.1:0.1:1.0]
 
+
 $fa = $preview ? 10 : Render_Mode_Facet_Angle;            // 360deg/5($fa) = 60 facets (affects performance and object smoothness)
 $fs = $preview ? 1 : Render_Mode_Facet_Size;       // Min facet size (lower for final render)
 
 /* [Build Configuration] */
-// Complete model build view (preview mode only)
-Build_Preview = true;
+// Render test parts for checking 3D printing settings
+// This will create a test part for each component to check printability and settings
+Build_TestParts = false; // [true:false]
+
+// Preview mode: view Complete model built
+Preview_BuiltModel = true; // [true:false]
 
 // Scale factor (1/3.33 for 1.5 rods, 5/3.33 = 1.5 rods) 
 Build_Scale = 1.0; // [0.1:0.1:3.0] 
@@ -46,9 +53,14 @@ wing_chord = wing_span / wing_aspectratio; // PNG 1150 has 149mm avg chord (1150
 /* [Fuselage Geometry Settings] */
 // Based on AXIS PNG 1150 fuselage specifications
 fuselage_type = 1;              // [1:"Standard 765mm", 2:"Short 685mm", 3:"Ultrashort 605mm", 4:"Crazyshort 525mm"]
-fuselage_width = 19;            // Fuselage width (horizontal dimension) in mm
-fuselage_height = 12;           // Fuselage height (vertical dimension) in mm
-fuselage_taper_ratio = 0.8;     // Taper ratio from root to tip
+fuselage_rod_od= [19, 19]; // Square rod dimensions for length of fuselage construction
+fuselage_rod_wall= [3.3, 3.3]; // Square rod wall thickness
+fuselage_rod_id= fuselage_rod_od-fuselage_rod_wall; // Square rod inner dimensions
+
+fuselage_width = fuselage_rod_od.x;            // Fuselage width (horizontal dimension) in mm
+fuselage_height = fuselage_rod_od.y;           // Fuselage height (vertical dimension) in mm
+fuselage_taper_ratio = 1.0;     // Taper ratio from root to tip (NOTE: For rod construction we cannot taper the fuselage, so this is set to 1.0)
+
 
 // Fuselage connection specifications
 mast_connection_diameter = 19;   // Mast connection diameter in mm (AXIS 19mm standard)
@@ -124,17 +136,58 @@ rib_offset = 1; // [0:1:10]
 // TODO: e817 looks good but not in DB presently
 include <lib/openscad-airfoil/e/e818.scad>
 
-// Airfoil path vectors
-af_vec_path_root = airfoil_E818_path();
-af_vec_path_mid = airfoil_E818_path();
-af_vec_path_tip = airfoil_E818_path();
+// Minimum trailing edge thickness for 3D printing compatibility
+min_trailing_edge_thickness = 0.25; // mm
 
-// Airfoil slice data
-af_vec_slice = airfoil_E818_slice();
+// Function to modify airfoil data for 3D printing compatibility
+// This function modifies both path and slice data consistently
+function modify_airfoil_for_printing(original_slice, min_thickness = 0.3) = 
+    let(
+        // Modify each slice point
+        modified_slice = [for (iSlice = original_slice)
+            let(
+                slice_perc = iSlice.x,
+                slice_top = iSlice.y,
+                slice_bottom = iSlice.z,
+                                
+                // Get current thickness
+                current_thickness = abs(slice_top - slice_bottom),
+                
+                // Calculate thickness adjustment needed
+                thickness_adjustment = current_thickness < min_thickness ? 
+                    (min_thickness - current_thickness) / 2 : 0,
 
-// Surface line vectors
-//af_vec_top = [for (i = af_vec_slice) [i.x, i.y]];       // Top surface line
-//af_vec_bottom = [for (i = af_vec_slice) [i.x, i.z]];    // Bottom surface line
+                // Apply modification to upper and lower surfaces
+                modified_top = slice_top + thickness_adjustment,
+                modified_bottom = slice_bottom - thickness_adjustment
+            ) [slice_perc, modified_top, modified_bottom]
+        ]
+    ) modified_slice;
+
+// Get original airfoil data
+af_vec_slice_original = airfoil_E818_slice();
+
+// Modify airfoil slice data for 3D printing
+af_vec_slice = modify_airfoil_for_printing(af_vec_slice_original, min_trailing_edge_thickness);
+
+// Extract surface lines from modified slice data
+af_vec_top = [for (i = af_vec_slice) [i.x, i.y]];       // Top surface line
+af_vec_bottom = [for (i = af_vec_slice) [i.x, i.z]];    // Bottom surface line
+
+// Function to create airfoil path from top and bottom surface lines
+function create_airfoil_path_from_surfaces(top_surface, bottom_surface) = 
+    let(
+        // Reverse bottom surface to create continuous path
+        bottom_reversed = [for (i = [len(bottom_surface) - 1 : -1 : 0]) bottom_surface[i]],
+        
+        // Combine top and bottom surfaces into single path
+        combined_path = concat(top_surface, bottom_reversed)
+    ) combined_path;
+
+// Create airfoil paths from modified surface data
+af_vec_path_root = create_airfoil_path_from_surfaces(af_vec_top, af_vec_bottom);
+af_vec_path_mid = af_vec_path_root;
+af_vec_path_tip = af_vec_path_root;
 
 // Mean camber line - midline halfway between top and bottom surfaces
 af_vec_mean_camber = [for (i = af_vec_slice) [i.x, (i.y + i.z) / 2]];
@@ -168,12 +221,12 @@ function TipAirfoilPath() = af_vec_path_tip;
 // perc: Percentage from leading edge
 // diam: Size of the spar hole
 // length: Length of the spar in mm
-// offset: Adjust where the spar is located
-function new_spar(perc, diam, length, offset=0) = [
+// offset: Optional manual offset override (if not provided, uses calculated offset)
+function new_spar(perc, diam, length, offset, offset_from=undef) = [
     perc,
     diam * Build_Scale,
     length * Build_Scale,
-    ((calculate_spar_offset_at_chord_position(perc)* WingSliceScaleFactorByPosition(0)) + offset) * Build_Scale 
+    ((offset_from != undef ? calculate_spar_offset_at_chord_position(perc, offset_from) : 0) + offset) * Build_Scale
 ];
 
 // Spar accessor functions
@@ -185,11 +238,17 @@ function spar_hole_offset(spar) = spar[3];
 // Spar hole configurations
 // Uses calculated offsets based on mean camber line for optimal structural positioning
 spar_holes = [
-    new_spar(15, 4.0, 250, 0),
-    new_spar(30, 4.0, 400, 0),
-    new_spar(45, 5.0, 400, -1.25),
-    new_spar(60, 5.0, 400, -1.25),
-    new_spar(75, 4.0, 400, -1.0)
+    // Full-span Spars go through, the wing but are split at the center line (May optionally be glued into the wing structure)
+    new_spar(15, 2.0, 250, -2.5, "TOP"), new_spar(15, 2.0, 250, 2.5, "BOTTOM"),
+    new_spar(35, 2.0, 300, -2.5, "TOP"), new_spar(35, 2.0, 400, 2.5, "BOTTOM"),
+    new_spar(55, 2.0, 300, -2.5, "TOP"), new_spar(55, 2.0, 500, 2.5, "BOTTOM"),
+    new_spar(75, 2.0, 400, -2, "MIDDLE"),
+    new_spar(85, 2.0, 300, 0, "MIDDLE"),
+
+    // Full-span Spars go through the fuselage as one piece
+    new_spar(25, 4.0, 400, 0.0),
+    new_spar(45, 4.0, 400, 1.5),
+    new_spar(65, 4.0, 400, 3.0)
 ];
 
 spar_hole_void_clearance = 0.0;  // Clearance for spar to grid interface (at least double extrusion width)
@@ -244,7 +303,7 @@ module main_wing() {
         }
         union() {
             for (spar = spar_holes) {
-              #  CreateSparHole(spar);
+                CreateSparHole(spar);
             }
         }
     }
@@ -284,45 +343,53 @@ echo(str("====================================="));
 }*/
 
 // Main execution
-if ($preview && Build_Preview) {
+if(Build_TestParts) {
+    // Print the lower 1mm of each wing part
+    split_into_parts(wing_mm, Printer_BuildArea, Build_Scale, af_bbox, 5) main_wing();
+    
+    fwd(20) yrot(90) left(wing_chord*Build_Scale/2+1)  split_into_parts(wing_mm, Printer_BuildArea, Build_Scale, af_bbox) intersection() { 
+        main_wing();
+        right(wing_chord*Build_Scale/2) cube([2,100, wing_mm*Build_Scale], anchor=BOTTOM+CENTER);
+    }
+}
+else
+if ($preview && Preview_BuiltModel) {
     // Preview mode - show complete model
    % main_wing();
    % zflip() main_wing();
     Fuselage();
-} else {
-    // Render mode - split into printable parts
-    splits = ceil(wing_mm / (250 * Build_Scale));
-    splits_length = wing_mm / splits;
+}
+else 
+{
 
-    for (i = [0:splits-1]) {
-        fwd(i * (af_bbox.w - af_bbox.z + (200 / (splits - 1))))
-        intersection() {
-            down(i * splits_length) main_wing();
-            cube([250, 250, splits_length], anchor=BOTTOM+LEFT);
-        }
-    }
+    // Render mode - split into printable parts
+    split_into_parts(wing_mm, Printer_BuildArea, Build_Scale, af_bbox) main_wing();
 }
 
 // CARBON SPAR SYSTEM
 // Function to calculate the ideal spar offset based on mean camber line
 // perc: Percentage from leading edge (0-100)
 // Returns the y-offset at that chord position for optimal structural positioning
-function calculate_spar_offset_at_chord_position(perc) = 
+function calculate_spar_offset_at_chord_position(perc, line="MID", position_mm = 0) = 
     let(
         // Since data is sorted by x-coordinate, find the first point >= target
         target_x = perc,
         
+        af_vec = line=="TOP" ? af_vec_top :
+                 line=="BOTTOM" ? af_vec_bottom :
+                 af_vec_mean_camber, //< undef == af_vec_mean_camber
+        
         // Simple linear search for the closest point (efficient for small datasets)
         closest_index = 
-            target_x <= af_vec_mean_camber[0][0] ? 0 :
-            target_x >= af_vec_mean_camber[len(af_vec_mean_camber)-1][0] ? len(af_vec_mean_camber)-1 :
+            target_x <= af_vec[0][0] ? 0 :
+            target_x >= af_vec[len(af_vec)-1][0] ? len(af_vec)-1 :
             // Find first point where x >= target_x
-            [for (i = [0 : len(af_vec_mean_camber) - 1]) 
-                if (af_vec_mean_camber[i][0] >= target_x) i][0],
+            [for (i = [0 : len(af_vec) - 1]) 
+                if (af_vec[i][0] >= target_x) i][0],
         
         // Get the y-coordinate at that position
-        y_offset = af_vec_mean_camber[closest_index][1]
-    ) y_offset;
+        y_offset = af_vec[closest_index][1]
+    ) y_offset * WingSliceScaleFactorByPosition(position_mm); // Scale the offset based on the current wing slice scale factor
 
 // Function to calculate wing slice scale factor based on position
 function WingSliceScaleFactorByPosition(position_mm) = 

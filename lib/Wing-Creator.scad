@@ -24,7 +24,7 @@ function GetAirfoilPath(index, wing_sections) =
                    RootAirfoilPath(),
         
         // Simplify path for preview mode using BOSL2 resample_path()
-        simplified_path = $preview ? resample_path(base_path, n=50, closed=true) : base_path
+        simplified_path = $preview ? resample_path(base_path, n=30, keep_corners=10, closed=true) : base_path
     )
     simplified_path;
 
