@@ -1,6 +1,20 @@
-CamberAdjust = 0; //% to increase or decrease the camber for difficult airfoils
-CenterGap = slice_ext_width;
-XandZHeight = 0.0001;
+CamberAdjust = 0; //% to increase or decrease the camber for difficult airfoil
+
+CamberAdjust = 0; //% to increase or decrease the camber for difficult airfoil
+
+module CamberVoidLE(airfoil_slice_path)
+{
+    polygon(points = airfoil_slice_path);
+    translate([ slice_ext_width * 2, 0, 0 ]) polygon(points = airfoil_slice_path);
+    translate([ -slice_ext_width * 2, 0, 0 ]) polygon(points = airfoil_slice_path);
+}
+
+module CamberVoidTE(airfoil_slice_path)
+{
+    polygon(points = airfoil_slice_path);
+    translate([ 0, slice_ext_width, 0 ]) polygon(points = airfoil_slice_path);
+    translate([ 0, -slice_ext_width, 0 ]) polygon(points = airfoil_slice_path);
+}
 
 //function scalePath(points, scaleFactor) = [for (p = points)[p[0] * scaleFactor, p[1] * scaleFactor]];
 
@@ -66,9 +80,9 @@ module CamberVoidTE(AFPoints)
 module GridWashoutSlice(i, scale_factor, current_chord_mm, LE)
 {
 
-    washout_start_point = (wing_mode == 1) ? (wing_sections * (washout_start / 100))
-                                           : WashoutStart(0, wing_sections, washout_start, wing_mm);
-    washout_deg_frac = washout_deg / (wing_sections - washout_start_point);
+    washout_start_point = (wing_mode == 1) ? (Main_Wing_Sections * (washout_start / 100))
+                                           : WashoutStart(0, Main_Wing_Sections, washout_start, Main_Wing_MM);
+    washout_deg_frac = washout_deg / (Main_Wing_Sections - washout_start_point);
     washout_deg_amount = (washout_start_point - i) * washout_deg_frac;
     rotate_point = current_chord_mm * (washout_pivot_perc / 100);
 
@@ -79,7 +93,7 @@ module GridWashoutSlice(i, scale_factor, current_chord_mm, LE)
 module GridESlice(i, scale_factor, LE)
 {
 
-    if (i > wing_sections * (tip_airfoil_change_perc / 100))
+    if (i > Main_Wing_Sections * (tip_airfoil_change_perc / 100))
     {
         if (LE)
         {
@@ -90,7 +104,7 @@ module GridESlice(i, scale_factor, LE)
             CamberVoidTE(scalePath(af_vec_path_tip, scale_factor));
         }
     }
-    else if (i > wing_sections * (center_airfoil_change_perc / 100))
+    else if (i > Main_Wing_Sections * (center_airfoil_change_perc / 100))
     {
         if (LE)
         {
@@ -116,14 +130,14 @@ module GridESlice(i, scale_factor, LE)
 
 module GridSlice(z_location, i, LE)
 {
-    current_chord_mm = (wing_mode == 1) ? ChordLengthAtIndex(i, wing_sections)
-                                        : ChordLengthAtEllipsePosition((wing_mm + 0.1), wing_root_chord_mm, z_location);
+    current_chord_mm = (wing_mode == 1) ? ChordLengthAtIndex(i, Main_Wing_Sections)
+                                        : ChordLengthAtEllipsePosition(Main_Wing_MM, Main_Wing_Root_Chord_MM, z_location);
 
     scale_factor = current_chord_mm / 100;
     translate([ 0, 0, z_location ]) translate([ -wing_center_line_perc / 100 * current_chord_mm, 0, 0 ])
 
-        if (washout_deg > 0 && ((wing_mode > 1 && i > WashoutStart(0, wing_sections, washout_start, wing_mm)) ||
-                                (wing_mode == 1 && i > (wing_sections * (washout_start / 100)))))
+        if (washout_deg > 0 && ((wing_mode > 1 && i > WashoutStart(0, Main_Wing_Sections, washout_start, Main_Wing_MM)) ||
+                                (wing_mode == 1 && i > (Main_Wing_Sections * (washout_start / 100)))))
     {
         GridWashoutSlice(i, scale_factor, current_chord_mm, LE);
     }
@@ -135,14 +149,14 @@ module GridSlice(z_location, i, LE)
 
 module CreateGridVoid()
 {
-    wing_section_mm = wing_mm / wing_sections;
+    wing_section_mm = Main_Wing_MM / Main_Wing_Sections;
     if (wing_mode == 1)
     {
-        translate([ wing_root_chord_mm * (wing_center_line_perc / 100), 0, 0 ]) union()
+        translate([ Main_Wing_Root_Chord_MM * (wing_center_line_perc / 100), 0, 0 ]) union()
         {
             color("red") union()
             {
-                for (i = [0:wing_sections])
+                for (i = [0:Main_Wing_Sections])
                 {
                     hull()
                     {
@@ -153,7 +167,7 @@ module CreateGridVoid()
             }
             color("green") union()
             {
-                for (i = [0:wing_sections])
+                for (i = [0:Main_Wing_Sections])
                 {
                     hull()
                     {
@@ -166,14 +180,14 @@ module CreateGridVoid()
     }
     else
     {
-        translate([ wing_root_chord_mm * (wing_center_line_perc / 100), 0, 0 ]) union()
+        translate([ Main_Wing_Root_Chord_MM * (wing_center_line_perc / 100), 0, 0 ]) union()
         {
             color("red") union()
             {
-                for (i = [0:wing_sections])
+                for (i = [0:Main_Wing_Sections])
                 {
-                    pos = f(i, wing_sections, wing_mm);
-                    npos = f((i + 1), wing_sections, wing_mm);
+                    pos = f(i, Main_Wing_Sections, Main_Wing_MM);
+                    npos = f((i + 1), Main_Wing_Sections, Main_Wing_MM);
                     hull()
                     {
                         GridSlice(pos, i, true);
@@ -183,10 +197,10 @@ module CreateGridVoid()
             }
             color("blue") union()
             {
-                for (i = [0:wing_sections])
+                for (i = [0:Main_Wing_Sections])
                 {
-                    pos = f(i, wing_sections, wing_mm);
-                    npos = f((i + 1), wing_sections, wing_mm);
+                    pos = f(i, Main_Wing_Sections, Main_Wing_MM);
+                    npos = f((i + 1), Main_Wing_Sections, Main_Wing_MM);
                     hull()
                     {
                         GridSlice(pos, i, false);

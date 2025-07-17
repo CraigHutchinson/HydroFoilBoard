@@ -36,7 +36,7 @@ function fuselage_cross_section(position_ratio) =
         fuselage_length = get_fuselage_length(),
 
         // Wing section transition ratio (0 = square, 1 = streamlined)
-        wing_section_length = (wing_root_chord_mm) / fuselage_length,
+        wing_section_length = (Main_Wing_Root_Chord_MM) / fuselage_length,
         
         // Create profile that transitions from square to streamlined
         profile = position_ratio < wing_section_length ?
@@ -83,7 +83,7 @@ module Fuselage() {
         if (spar_through_fuselage) {
             for (spar = spar_holes) {
                 translate([
-                    (spar_hole_perc(spar) / 100) * wing_root_chord_mm,
+                    (spar_hole_perc(spar) / 100) * Main_Wing_Root_Chord_MM,
                     spar_hole_offset(spar),
                     0
                 ]) {

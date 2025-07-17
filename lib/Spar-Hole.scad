@@ -1,6 +1,6 @@
 
 // Helper function to calculate spar hole x-position
-function spar_x_position(spar) = spar_hole_perc(spar) / 100 * wing_root_chord_mm;
+function spar_x_position(spar) = spar_hole_perc(spar) / 100 * Main_Wing_Root_Chord_MM;
 
 // Helper function to calculate spar hole radius
 function spar_hole_radius(spar) = spar_hole_size(spar) / 2;

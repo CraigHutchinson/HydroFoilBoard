@@ -1,10 +1,10 @@
 // Function to calculate the rib cord length
 function ChordLengthAtIndex(index,
-                            loc_wing_sections) = wing_root_chord_mm -
-                                                 ((wing_root_chord_mm - wing_tip_chord_mm) / loc_wing_sections) * index;
+                            loc_wing_sections) = Main_Wing_Root_Chord_MM -
+                                                 ((Main_Wing_Root_Chord_MM - Main_Wing_Tip_Chord_MM) / loc_wing_sections) * index;
 
-function ChordLengthAtPosition(length_from_root_mm) = wing_root_chord_mm - (wing_root_chord_mm - wing_tip_chord_mm) *
-                                                                               (length_from_root_mm / wing_mm);
+function ChordLengthAtPosition(length_from_root_mm) = Main_Wing_Root_Chord_MM - (Main_Wing_Root_Chord_MM - Main_Wing_Tip_Chord_MM) *
+                                                                               (length_from_root_mm / Main_Wing_MM);
 
 // EaseInOut cubic function from t in [0,1] to eased progress [0,1]
 function easeInOutCubic(t) = 
@@ -14,7 +14,10 @@ function easeInOutCubic(t) =
 //	a: The semi-major axis of the ellipse (half the total span of the wing).
 //	b: The semi-minor axis (maximum chord length, usually at the root).
 //	x: The distance from the center (root) along the span.
-function ChordLengthAtEllipsePosition(a, b, x) = 2 * sqrt(((b / 2) * (b / 2) * (1 - pow((x * x) / (a * a),wing_eliptic_pow))));
+//	elliptic_pow: Power factor for elliptic distribution (optional, defaults to global wing_eliptic_pow)
+function ChordLengthAtEllipsePosition(a, b, x, elliptic_pow=undef) = 
+    let(pow_factor = (elliptic_pow != undef) ? elliptic_pow : wing_eliptic_pow)
+    2 * sqrt(((b / 2) * (b / 2) * (1 - pow((x * x) / (a * a), pow_factor))));
 
 // Function using quadratic curve to create points that decrease towards the highest part of the wing
 function f(i, numPoints, height) = height * (1 - pow((numPoints - i) / numPoints, 2));
