@@ -239,15 +239,15 @@ function spar_hole_offset(spar) = spar[3];
 // Uses calculated offsets based on mean camber line for optimal structural positioning
 spar_holes = [
     // Full-span Spars go through, the wing but are split at the center line (May optionally be glued into the wing structure)
-    new_spar(15, 2.0, 250, -2.5, "TOP"), new_spar(15, 2.0, 250, 2.5, "BOTTOM"),
-    new_spar(35, 2.0, 300, -2.5, "TOP"), new_spar(35, 2.0, 400, 2.5, "BOTTOM"),
-    new_spar(55, 2.0, 300, -2.5, "TOP"), new_spar(55, 2.0, 500, 2.5, "BOTTOM"),
-    new_spar(75, 2.0, 400, -2, "MIDDLE"),
-    new_spar(85, 2.0, 300, 0, "MIDDLE"),
+    new_spar(10, 2.0, 300, 0.5, "MIDDLE"),
+    new_spar(15, 2.0, 250, -2.5, "TOP"), new_spar(15, 2.0, 250, 3.25, "BOTTOM"),
+    new_spar(35, 2.0, 300, -2.5, "TOP"), new_spar(35, 2.0, 450, 3, "BOTTOM"),
+    new_spar(55, 2.0, 300, -3, "TOP"), new_spar(55, 2.0, 450, 3, "BOTTOM"),
+    new_spar(75, 2.0, 400, -1.0, "MIDDLE"),
 
     // Full-span Spars go through the fuselage as one piece
-    new_spar(25, 4.0, 400, 0.0),
-    new_spar(45, 4.0, 400, 1.5),
+    new_spar(25, 4.0, 400, 0.5),
+    new_spar(45, 4.0, 400, 1.75),
     new_spar(65, 4.0, 400, 3.0)
 ];
 
