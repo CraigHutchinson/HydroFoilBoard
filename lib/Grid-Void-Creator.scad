@@ -1,7 +1,5 @@
 CamberAdjust = 0; //% to increase or decrease the camber for difficult airfoil
 
-CamberAdjust = 0; //% to increase or decrease the camber for difficult airfoil
-
 module CamberVoidLE(airfoil_slice_path)
 {
     polygon(points = airfoil_slice_path);
@@ -134,7 +132,7 @@ module GridSlice(z_location, i, LE)
                                         : ChordLengthAtEllipsePosition(Main_Wing_MM, Main_Wing_Root_Chord_MM, z_location);
 
     scale_factor = current_chord_mm / 100;
-    translate([ 0, 0, z_location ]) translate([ -wing_center_line_perc / 100 * current_chord_mm, 0, 0 ])
+    translate([ 0, 0, z_location ]) translate([ -MainWing_Center_Line_Perc / 100 * current_chord_mm, 0, 0 ])
 
         if (washout_deg > 0 && ((wing_mode > 1 && i > WashoutStart(0, Main_Wing_Sections, washout_start, Main_Wing_MM)) ||
                                 (wing_mode == 1 && i > (Main_Wing_Sections * (washout_start / 100)))))
@@ -152,7 +150,7 @@ module CreateGridVoid()
     wing_section_mm = Main_Wing_MM / Main_Wing_Sections;
     if (wing_mode == 1)
     {
-        translate([ Main_Wing_Root_Chord_MM * (wing_center_line_perc / 100), 0, 0 ]) union()
+        translate([ Main_Wing_Root_Chord_MM * (MainWing_Center_Line_Perc / 100), 0, 0 ]) union()
         {
             color("red") union()
             {
@@ -180,7 +178,7 @@ module CreateGridVoid()
     }
     else
     {
-        translate([ Main_Wing_Root_Chord_MM * (wing_center_line_perc / 100), 0, 0 ]) union()
+        translate([ Main_Wing_Root_Chord_MM * (MainWing_Center_Line_Perc / 100), 0, 0 ]) union()
         {
             color("red") union()
             {

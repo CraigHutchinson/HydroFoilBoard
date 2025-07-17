@@ -141,9 +141,9 @@ Refer to https://github.com/guillaumef/openscad-airfoil for instructions.
 
 #### 2. Wing Geometry Settings
 - **Wing Mode** - Choose between Trapezoidal (1) or Elliptical (2)
-- **wing_eliptic_pow** - Control ellipse shape (1.0-3.0, 2.0 = perfect ellipse)
+- **Main_Wing_Eliptic_Pow** - Control ellipse shape (1.0-3.0, 2.0 = perfect ellipse)
 - **wing_sections** - Resolution quality (20 for preview, 75 for final)
-- **wing_center_line_perc** - Wing mounting position (0-100%)
+- **MainWing_Center_Line_Perc** - Wing mounting position (0-100%)
 
 #### 3. Airfoil Settings
 - **center_airfoil_change_perc** - Where to transition to center airfoil

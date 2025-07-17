@@ -14,9 +14,9 @@ function easeInOutCubic(t) =
 //	a: The semi-major axis of the ellipse (half the total span of the wing).
 //	b: The semi-minor axis (maximum chord length, usually at the root).
 //	x: The distance from the center (root) along the span.
-//	elliptic_pow: Power factor for elliptic distribution (optional, defaults to global wing_eliptic_pow)
+//	elliptic_pow: Power factor for elliptic distribution (optional, defaults to global Main_Wing_Eliptic_Pow)
 function ChordLengthAtEllipsePosition(a, b, x, elliptic_pow=undef) = 
-    let(pow_factor = (elliptic_pow != undef) ? elliptic_pow : wing_eliptic_pow)
+    let(pow_factor = (elliptic_pow != undef) ? elliptic_pow : Main_Wing_Eliptic_Pow)
     2 * sqrt(((b / 2) * (b / 2) * (1 - pow((x * x) / (a * a), pow_factor))));
 
 // Function using quadratic curve to create points that decrease towards the highest part of the wing

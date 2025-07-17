@@ -45,17 +45,71 @@ slice_gap_width = 0.02; // [0.01:0.01:0.5]
 
 /* [Main Wing Geometry Settings] */
 // Based on AXIS PNG 1150 specifications
-wing_main_span = 1150;               // Total main wing span in mm
-wing_main_aspectratio = 7.72;        // Main wing aspect ratio
-wing_main_area = 1713;               // Main wing area in cm²
-wing_main_chord = wing_main_span / wing_main_aspectratio; // PNG 1150 has 149mm avg chord (1150/7.72)
+Main_Wing_span = 1150;               // Total main wing span in mm
+Main_Wing_aspectratio = 7.72;        // Main wing aspect ratio
+Main_Wing_area = 1713;               // Main wing area in cm²
+Main_Wing_chord = Main_Wing_span / Main_Wing_aspectratio; // PNG 1150 has 149mm avg chord (1150/7.72)
+
+// Main Wing dimensions
+// Number of main wing sections (more = higher resolution)
+Main_Wing_Sections = $preview ? 20 : 100; // [10:5:150]
+Main_Wing_MM = (Main_Wing_span / 2) * Build_Scale;         // Main wing length in mm (half span)
+Main_Wing_Root_Chord_MM = Main_Wing_chord * Build_Scale;   // Root chord length in mm
+// Main wing tip chord length in mm (not relevant for elliptic wing)
+Main_Wing_Tip_Chord_MM = 50 * Build_Scale; // [10:5:200]
+
+// Wing shape settings
+Main_Wing_Mode = 2; // [1:"Trapezoidal Wing", 2:"Elliptic Wing"]
+
+// Power of the elliptic wing (2 = perfect ellipse)
+Main_Wing_Eliptic_Pow = 1.5; // [1.0:0.1:3.0]
+// Percentage from leading edge for wing center line
+MainWing_Center_Line_Perc = 90; // [0:100]
+
+// Wing anhedral settings (degrees)
+// Anhedral creates a downward angle of the wing tips for improved stability
+// This defines the angle of the anhedral at the tip of the wing (degrees)
+Wing_Anhedral_Degrees = 0.5; // [0:0.2:10]
+// Where anhedral starts (percentage from root)
+// This defines where the anhedral starts along the span - wing sections are rotated around x-axis and offset in y
+Wing_Anhedral_Start_At_Percentage = 50; // [0:100]
 
 /* [Rear Stabilizer Wing Geometry Settings] */
 // Based on typical hydrofoil proportions (20-25% of main wing area)
-wing_rear_span = 300;                // Rear stabilizer span in mm (typical 25-30% of main span)
-wing_rear_aspectratio = 4.0;         // Rear stabilizer aspect ratio (typically lower than main wing)
-wing_rear_area = 428;                // Rear stabilizer area in cm² (25% of main wing area)
-wing_rear_chord = wing_rear_span / wing_rear_aspectratio; // 75mm avg chord (300/4.0)
+Rear_Wing_Span = 300;                // Rear stabilizer span in mm (typical 25-30% of main span)
+Rear_Wing_Aspect = 4.0;         // Rear stabilizer aspect ratio (typically lower than main wing)
+Rear_Wing_Area = 428;                // Rear stabilizer area in cm² (25% of main wing area)
+Rear_Wing_Chord = Rear_Wing_Span / Rear_Wing_Aspect; // 75mm avg chord (300/4.0)
+
+// Rear Wing dimensions
+// Number of rear wing sections (more = higher resolution)
+Rear_Wing_sections = $preview ? 15 : 75; // [8:3:100]
+Rear_Wing_mm = (Rear_Wing_Span / 2) * Build_Scale;         // Rear wing length in mm (half span)
+Rear_Wing_root_chord_mm = Rear_Wing_Chord * Build_Scale;   // Rear root chord length in mm
+// Rear wing tip chord length in mm (not relevant for elliptic wing)
+Rear_Wing_tip_chord_mm = 25 * Build_Scale; // [5:2:100]
+
+// Rear Wing shape settings
+Rear_Wing_mode = 2; // [1:"Trapezoidal Wing", 2:"Elliptic Wing"]
+
+// Power of the elliptic rear wing (2 = perfect ellipse)
+Rear_Wing_eliptic_pow = 1.0; // [1.0:0.1:3.0]
+// Percentage from leading edge for rear wing center line
+Rear_MainWing_Center_Line_Perc = 95; // [0:100]
+
+// Rear wing anhedral settings (degrees)
+// Rear wing anhedral is typically less than main wing
+Rear_Wing_Anhedral_Degrees = 5.0; // [0:0.2:5]
+// Where rear wing anhedral starts (percentage from root)
+Rear_Wing_Anhedral_Start_At_Percentage = 60; // [0:100]
+
+/* [ Wing Position Settings] */
+
+// Rear wing positioning on fuselage
+Rear_Wing_position_from_main = 600; // Distance from main wing to rear wing in mm (typical 3-4x main chord)
+Rear_Wing_vertical_offset = 0;       // Vertical offset of rear wing from main wing centerline in mm
+Rear_Wing_angle_offset = 0;          // Angle offset of rear wing relative to main wing in degrees (positive = nose up)
+
 
 /* [Fuselage Geometry Settings] */
 // Based on AXIS PNG 1150 fuselage specifications
@@ -74,58 +128,6 @@ mast_connection_diameter = 19;   // Mast connection diameter in mm (AXIS 19mm st
 mast_connection_length = 100;    // Mast connection length in mm
 spar_through_fuselage = true;    // Wing spars pass through fuselage (no separate bolts)
 stabilizer_connection_spacing = 50; // Distance between stabilizer mounting bolts in mm
-
-// Rear wing positioning on fuselage
-rear_wing_position_from_main = 600; // Distance from main wing to rear wing in mm (typical 3-4x main chord)
-rear_wing_vertical_offset = 0;       // Vertical offset of rear wing from main wing centerline in mm
-rear_wing_angle_offset = 0;          // Angle offset of rear wing relative to main wing in degrees (positive = nose up)
-
-// Main Wing dimensions
-// Number of main wing sections (more = higher resolution)
-Main_Wing_Sections = $preview ? 20 : 100; // [10:5:150]
-Main_Wing_MM = (wing_main_span / 2) * Build_Scale;         // Main wing length in mm (half span)
-Main_Wing_Root_Chord_MM = wing_main_chord * Build_Scale;   // Root chord length in mm
-// Main wing tip chord length in mm (not relevant for elliptic wing)
-Main_Wing_Tip_Chord_MM = 50 * Build_Scale; // [10:5:200]
-
-// Rear Wing dimensions
-// Number of rear wing sections (more = higher resolution)
-wing_rear_sections = $preview ? 15 : 75; // [8:3:100]
-wing_rear_mm = (wing_rear_span / 2) * Build_Scale;         // Rear wing length in mm (half span)
-wing_rear_root_chord_mm = wing_rear_chord * Build_Scale;   // Rear root chord length in mm
-// Rear wing tip chord length in mm (not relevant for elliptic wing)
-wing_rear_tip_chord_mm = 25 * Build_Scale; // [5:2:100]
-
-// Wing shape settings
-wing_mode = 2; // [1:"Trapezoidal Wing", 2:"Elliptic Wing"]
-
-// Power of the elliptic wing (2 = perfect ellipse)
-wing_eliptic_pow = 1.5; // [1.0:0.1:3.0]
-// Percentage from leading edge for wing center line
-wing_center_line_perc = 90; // [0:100]
-
-// Rear Wing shape settings
-wing_rear_mode = 2; // [1:"Trapezoidal Wing", 2:"Elliptic Wing"]
-
-// Power of the elliptic rear wing (2 = perfect ellipse)
-wing_rear_eliptic_pow = 2.0; // [1.0:0.1:3.0]
-// Percentage from leading edge for rear wing center line
-wing_rear_center_line_perc = 90; // [0:100]
-
-// Wing anhedral settings (degrees)
-// Anhedral creates a downward angle of the wing tips for improved stability
-// This defines the angle of the anhedral at the tip of the wing (degrees)
-Wing_Anhedral_Degrees = 0.5; // [0:0.2:10]
-// Where anhedral starts (percentage from root)
-// This defines where the anhedral starts along the span - wing sections are rotated around x-axis and offset in y
-Wing_Anhedral_Start_At_Percentage = 50; // [0:100]
-
-/* [Rear Wing Anhedral Settings] */
-// Rear wing anhedral settings (degrees)
-// Rear wing anhedral is typically less than main wing
-Rear_Wing_Anhedral_Degrees = 0.0; // [0:0.2:5]
-// Where rear wing anhedral starts (percentage from root)
-Rear_Wing_Anhedral_Start_At_Percentage = 60; // [0:100]
 
 /* [Airfoil Settings] */
 // Where to change to center airfoil (100 = off)
@@ -316,9 +318,9 @@ module CreateMainWing() {
         wing_mm = Main_Wing_MM,
         root_chord_mm = Main_Wing_Root_Chord_MM,
         tip_chord_mm = Main_Wing_Tip_Chord_MM,
-        wing_mode = wing_mode,
-        elliptic_pow = wing_eliptic_pow,
-        center_line_perc = wing_center_line_perc,
+        wing_mode = Main_Wing_Mode,
+        elliptic_pow = Main_Wing_Eliptic_Pow,
+        center_line_perc = MainWing_Center_Line_Perc,
         washout_deg = washout_deg,
         washout_start = washout_start,
         washout_pivot_perc = washout_pivot_perc,
@@ -335,13 +337,13 @@ module CreateMainWing() {
  */
 module CreateRearWing() {
     CreateWing(
-        wing_sections = wing_rear_sections,
-        wing_mm = wing_rear_mm,
-        root_chord_mm = wing_rear_root_chord_mm,
-        tip_chord_mm = wing_rear_tip_chord_mm,
-        wing_mode = wing_rear_mode,
-        elliptic_pow = wing_rear_eliptic_pow,
-        center_line_perc = wing_rear_center_line_perc,
+        wing_sections = Rear_Wing_sections,
+        wing_mm = Rear_Wing_mm,
+        root_chord_mm = Rear_Wing_root_chord_mm,
+        tip_chord_mm = Rear_Wing_tip_chord_mm,
+        wing_mode = Rear_Wing_mode,
+        elliptic_pow = Rear_Wing_eliptic_pow,
+        center_line_perc = Rear_MainWing_Center_Line_Perc,
         washout_deg = rear_washout_deg,
         washout_start = rear_washout_start,
         washout_pivot_perc = rear_washout_pivot_perc,
@@ -399,12 +401,12 @@ module main_wing() {
 }
 
 // REAR WING MODULE
-module rear_wing() {
+module Rear_Wing() {
     // Position rear wing relative to main wing
-    translate([0, 0, rear_wing_position_from_main]) {
-        translate([0, rear_wing_vertical_offset, 0]) {
-            rotate([rear_wing_angle_offset, 0, 0]) {
-                CreateRearWing();
+   translate([Rear_Wing_position_from_main,0, 0]) {
+        translate([0, Rear_Wing_vertical_offset, 0]) {
+            rotate([Rear_Wing_angle_offset, 0, 0]) {
+                 xrot(180) CreateRearWing();
             }
         }
     }
@@ -420,15 +422,15 @@ if (Main_Wing_Sections * 0.2 < slice_transisions) {
 
 // Display PNG 1150 specifications
 echo(str("=== AXIS PNG 1150 Specifications ==="));
-echo(str("Main Wing Span: ", wing_main_span, "mm"));
-echo(str("Main Wing Area: ", wing_main_area, "cm²"));
-echo(str("Main Wing Aspect Ratio: ", wing_main_aspectratio));
-echo(str("Main Wing Average Chord: ", wing_main_chord, "mm"));
-echo(str("Rear Wing Span: ", wing_rear_span, "mm"));
-echo(str("Rear Wing Area: ", wing_rear_area, "cm²"));
-echo(str("Rear Wing Aspect Ratio: ", wing_rear_aspectratio));
-echo(str("Rear Wing Average Chord: ", wing_rear_chord, "mm"));
-echo(str("Rear Wing Position: ", rear_wing_position_from_main, "mm from main wing"));
+echo(str("Main Wing Span: ", Main_Wing_span, "mm"));
+echo(str("Main Wing Area: ", Main_Wing_area, "cm²"));
+echo(str("Main Wing Aspect Ratio: ", Main_Wing_aspectratio));
+echo(str("Main Wing Average Chord: ", Main_Wing_chord, "mm"));
+echo(str("Rear Wing Span: ", Rear_Wing_Span, "mm"));
+echo(str("Rear Wing Area: ", Rear_Wing_Area, "cm²"));
+echo(str("Rear Wing Aspect Ratio: ", Rear_Wing_Aspect));
+echo(str("Rear Wing Average Chord: ", Rear_Wing_Chord, "mm"));
+echo(str("Rear Wing Position: ", Rear_Wing_position_from_main, "mm from main wing"));
 echo(str("Fuselage Length: ", get_fuselage_length(), "mm"));
 echo(str("Fuselage Type: ", 
     fuselage_type == 1 ? "Standard (765mm)" :
@@ -442,7 +444,7 @@ echo(str("Spar Through Design: ", spar_through_fuselage ? "Yes" : "No"));
 echo(str("Number of Spars: ", len(spar_holes)));
 echo(str("Build Scale: ", Build_Scale, "x"));
 echo(str("Scaled Main Wing Half-Span: ", Main_Wing_MM, "mm"));
-echo(str("Scaled Rear Wing Half-Span: ", wing_rear_mm, "mm"));
+echo(str("Scaled Rear Wing Half-Span: ", Rear_Wing_mm, "mm"));
 echo(str("====================================="));
 
 /*else if (add_inner_grid == false && spar_hole == true) {
@@ -454,9 +456,9 @@ if(Build_TestParts) {
     // Print the lower 1mm of each wing part
     split_into_parts(Main_Wing_MM, Printer_BuildArea, Build_Scale, af_bbox, 5) main_wing();
     
-    fwd(20) yrot(90) left(wing_main_chord*Build_Scale/2+1)  split_into_parts(Main_Wing_MM, Printer_BuildArea, Build_Scale, af_bbox) intersection() { 
+    fwd(20) yrot(90) left(Main_Wing_chord*Build_Scale/2+1)  split_into_parts(Main_Wing_MM, Printer_BuildArea, Build_Scale, af_bbox) intersection() { 
         main_wing();
-        right(wing_main_chord*Build_Scale/2) cube([2,100, Main_Wing_MM*Build_Scale], anchor=BOTTOM+CENTER);
+        right(Main_Wing_chord*Build_Scale/2) cube([2,100, Main_Wing_MM*Build_Scale], anchor=BOTTOM+CENTER);
     }
 }
 else
@@ -464,8 +466,8 @@ if ($preview && Preview_BuiltModel) {
     // Preview mode - show complete model
    % main_wing();
    % zflip() main_wing();
-   % rear_wing();
-   % zflip() rear_wing();
+   % Rear_Wing();
+   % zflip() Rear_Wing();
     Fuselage();
 }
 else 
@@ -504,7 +506,7 @@ function calculate_spar_offset_at_chord_position(perc, line="MID", position_mm =
 function MainWingSliceScaleFactorByPosition(position_mm) = 
     let(
         // Calculate chord at this position using elliptic distribution
-        current_chord = (wing_mode == 1) 
+        current_chord = (Main_Wing_Mode == 1) 
             ? ChordLengthAtPosition(position_mm)
             : ChordLengthAtEllipsePosition(Main_Wing_MM, Main_Wing_Root_Chord_MM, position_mm),
         
