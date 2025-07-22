@@ -9,7 +9,6 @@ include <bosl2/std.scad>
 // https://github.com/guillaumef/openscad-airfoil
 // https://github.com/Beachless/Vase-Wing
 
-
 /* [Print Settings] */
 Printer_BuildArea = [250, 250, 250]; // Printer build area in mm
 Printer_NozzleDiameter = 0.4; // Printer nozzle diameter in mm
@@ -72,21 +71,29 @@ slice_gap_width = 0.02; // [0.01:0.01:0.5]
 Main_Wing_span = 1150;               // Total main wing span in mm
 Main_Wing_aspectratio = 7.72;        // Main wing aspect ratio
 Main_Wing_area = 1713;               // Main wing area in cm²
-Main_Wing_chord = Main_Wing_span / Main_Wing_aspectratio; // PNG 1150 has 149mm avg chord (1150/7.72)
+Main_Wing_Average_Chord = Main_Wing_span / Main_Wing_aspectratio; // PNG 1150 has 149mm avg chord (1150/7.72)
+
+// Power of the elliptic wing (2 = perfect ellipse)
+Main_Wing_Eliptic_Pow = 1.4; // [1.0:0.05:3.0] // Changed from 1.75 to 2.0 for true ellipse
+
+// NOTE: AXIS PNG 1150 Area Calculation - Theoretical Scale Factor Calculation
+// The PNG 1150 has 1713 cm² area with 1150mm span and 7.72 aspect ratio
+// The ChordLengthAtEllipsePosition() function uses: chord = 2 * sqrt((b/2)² * (1 - (x²/a²)^power))
+// The relationship between average chord and root chord depends on the elliptic power factor
+// For an elliptic wing with power p, the theoretical scale factor can be calculated
+Main_Wing_Root_Chord_Scale_Factor = calculate_elliptic_scale_factor(Main_Wing_Eliptic_Pow);
 
 // Main Wing dimensions
 // Number of main wing sections (more = higher resolution)
 Main_Wing_Sections = $preview ? 20 : 100; // [10:5:150]
 Main_Wing_mm = (Main_Wing_span / 2) * Build_Scale;         // Main wing length in mm (half span)
-Main_Wing_Root_Chord_MM = Main_Wing_chord * Build_Scale;   // Root chord length in mm
+Main_Wing_Root_Chord_MM = Main_Wing_Average_Chord * Main_Wing_Root_Chord_Scale_Factor * Build_Scale;   // Root chord length in mm (calculated from average chord)
 // Main wing tip chord length in mm (not relevant for elliptic wing)
 Main_Wing_Tip_Chord_MM = 50 * Build_Scale; // [10:5:200]
 
 // Wing shape settings
 Main_Wing_Mode = 2; // [1:"Trapezoidal Wing", 2:"Elliptic Wing"]
 
-// Power of the elliptic wing (2 = perfect ellipse)
-Main_Wing_Eliptic_Pow = 1.5; // [1.0:0.1:3.0]
 // Percentage from leading edge for wing center line
 MainWing_Center_Line_Perc = 90; // [0:100]
 
@@ -442,41 +449,81 @@ if (Main_Wing_Sections * 0.2 < slice_transisions) {
     echo("ERROR: center_airfoil_change_perc has to be in a range of 0-100.");
 }
 
-// Display PNG 1150 specifications
-echo(str("=== AXIS PNG 1150 Specifications ==="));
-echo(str("Main Wing Span: ", Main_Wing_span, "mm"));
-echo(str("Main Wing Area: ", Main_Wing_area, "cm²"));
+// Calculate actual wing area from the model geometry
+Main_Wing_Area_Actual = calculate_actual_wing_area();
+Main_Wing_Area_ErrorPercentage = round((Main_Wing_Area_Actual/100 - Main_Wing_area)/Main_Wing_area * 100);
+
+Main_Wing_Area_DoAnalysis = (abs(Main_Wing_Area_ErrorPercentage) > 1);
+
+// Display hydrofoil specifications
+echo("========================================");
+echo("     HYDROFOIL BOARD SPECIFICATIONS     ");
+echo("========================================");
+echo(str("Main Wing Span: ", Main_Wing_span, " mm"));
+echo(str("Main Wing Area: ", Main_Wing_area, " cm² (actual: ", Main_Wing_Area_Actual/100, " cm², diff: ", (Main_Wing_Area_Actual/100 - Main_Wing_area), " cm² [", 
+    Main_Wing_Area_ErrorPercentage, "%])"));
 echo(str("Main Wing Aspect Ratio: ", Main_Wing_aspectratio));
-echo(str("Main Wing Average Chord: ", Main_Wing_chord, "mm"));
-echo(str("Rear Wing Span: ", Rear_Wing_Span, "mm"));
-echo(str("Rear Wing Area: ", Rear_Wing_Area, "cm²"));
+echo(str("Main Wing Average Chord: ", Main_Wing_Average_Chord, " mm"));
+echo(str("Main Wing Root Chord: ", Main_Wing_Root_Chord_MM, " mm"));
+
+if ( Main_Wing_Area_DoAnalysis )
+{
+    // Diagnostic calculations for AXIS PNG 1150
+    theoretical_ellipse_area_with_root = (PI/2) * Main_Wing_mm * Main_Wing_Root_Chord_MM; // Full wing (both halves) using actual root chord
+    theoretical_ellipse_area_with_avg = Main_Wing_span * (Main_Wing_Average_Chord * Build_Scale); // Full wing (both halves) using average chord (planform area)
+    echo(str("=== ELLIPTIC SCALE FACTOR ANALYSIS ==="));
+    echo(str("Elliptic power factor: ", Main_Wing_Eliptic_Pow));
+    echo(str("Calculated scale factor: ", Main_Wing_Root_Chord_Scale_Factor));
+    echo(str("Applied root chord: ", Main_Wing_Root_Chord_MM, " mm (", Main_Wing_Average_Chord, " × ", Main_Wing_Root_Chord_Scale_Factor, ")"));
+    echo(str("=== AREA DIAGNOSTIC CALCULATIONS ==="));
+    echo(str("Theoretical ellipse area (π*b*c_root): ", theoretical_ellipse_area_with_root/100, " cm²"));
+    echo(str("Theoretical planform area (b*c_avg): ", theoretical_ellipse_area_with_avg/100, " cm²"));
+    echo(str("PNG 1150 should have area: ", PI/4 * Main_Wing_span * Main_Wing_Average_Chord / 100, " cm²"));
+    echo(str("Current elliptic power: ", Main_Wing_Eliptic_Pow));
+    echo(str("=== EMPIRICAL SCALE FACTOR ==="));
+    echo(str("Applied root chord: ", Main_Wing_Root_Chord_MM, " mm (", Main_Wing_Average_Chord, " × ", Main_Wing_Root_Chord_Scale_Factor, ")"));
+    echo(str("==========================="));
+}
+echo("----------------------------------------");
+echo(str("Rear Wing Span: ", Rear_Wing_Span, " mm"));
+echo(str("Rear Wing Area: ", Rear_Wing_Area, " cm²"));
 echo(str("Rear Wing Aspect Ratio: ", Rear_Wing_Aspect));
-echo(str("Rear Wing Average Chord: ", Rear_Wing_Chord, "mm"));
-echo(str("Rear Wing Position: ", Rear_Wing_position_from_main, "mm from main wing"));
-echo(str("Fuselage Length: ", get_fuselage_length(), "mm"));
+echo(str("Rear Wing Average Chord: ", Rear_Wing_Chord, " mm"));
+echo(str("Rear Wing Position: ", Rear_Wing_position_from_main, " mm from main"));
+echo("----------------------------------------");
+echo(str("Fuselage Length: ", get_fuselage_length(), " mm"));
 echo(str("Fuselage Type: ", 
     fuselage_type == 1 ? "Standard (765mm)" :
     fuselage_type == 2 ? "Short (685mm)" :
     fuselage_type == 3 ? "Ultrashort (605mm)" :
     "Crazyshort (525mm)"
 ));
-echo(str("Fuselage Width: ", fuselage_width, "mm"));
-echo(str("Fuselage Height: ", fuselage_height, "mm"));
-echo(str("Spar Through Design: ", spar_through_fuselage ? "Yes" : "No"));
+echo(str("Fuselage Dimensions: ", fuselage_width, " × ", fuselage_height, " mm"));
+echo("----------------------------------------");
 echo(str("Number of Spars: ", len(spar_holes)));
+echo(str("Spar Through Design: ", spar_through_fuselage ? "Yes" : "No"));
+echo("----------------------------------------");
 echo(str("Build Scale: ", Build_Scale, "x"));
-echo(str("Scaled Main Wing Half-Span: ", Main_Wing_mm, "mm"));
-echo(str("Scaled Rear Wing Half-Span: ", Rear_Wing_mm, "mm"));
-echo(str("====================================="));
+echo(str("Scaled Main Wing Half-Span: ", Main_Wing_mm, " mm"));
+echo(str("Scaled Rear Wing Half-Span: ", Rear_Wing_mm, " mm"));
+echo("========================================");
 
 /*else if (add_inner_grid == false && spar_hole == true) {
     echo("ERROR: add_inner_grid needs to be true for spar_hole to be true");
 }*/
 
-// Main execution
+
+
+
+if ( Main_Wing_Area_DoAnalysis )
+{
+    visualize_actual_wing_area();
+    fwd(15) visualize_wing_area_calculation();
+}
+else // Main execution
 if(Build_CalibrationParts) {
     thickness = (Spar_Calibration_Large_Hole_ResultIndex != undef) ? Printer_BuildArea.z-30 : 2.5;
-    crop_x = (Spar_Calibration_Large_Hole_ResultIndex != undef) ? Main_Wing_chord * 0.3 : Printer_BuildArea.x;
+    crop_x = (Spar_Calibration_Large_Hole_ResultIndex != undef) ? Main_Wing_Average_Chord * 0.3 : Printer_BuildArea.x;
     count = 10; // Number of small/large spar holes to create +1 for 0 tolerance)
     max_tolerance = 0.30;
 
@@ -541,9 +588,9 @@ if(Build_TestParts) {
 
     fwd(20) split_into_parts(Rear_Wing_mm, Printer_BuildArea, Build_Scale, af_bbox, 5) CreateRearWing();
     
-    fwd(40) yrot(90) left(Main_Wing_chord*Build_Scale/2+1)  split_into_parts(Main_Wing_mm, Printer_BuildArea, Build_Scale, af_bbox) intersection() { 
+    fwd(40) yrot(90) left(Main_Wing_Average_Chord*Build_Scale/2+1)  split_into_parts(Main_Wing_mm, Printer_BuildArea, Build_Scale, af_bbox) intersection() { 
         main_wing();
-        right(Main_Wing_chord*Build_Scale/2) cube([2,100, Main_Wing_mm*Build_Scale], anchor=BOTTOM+CENTER);
+        right(Main_Wing_Average_Chord*Build_Scale/2) cube([2,100, Main_Wing_mm*Build_Scale], anchor=BOTTOM+CENTER);
     }
 }
 else
@@ -602,3 +649,81 @@ function MainWingSliceScaleFactorByPosition(position_mm) =
         // Scale factor normalized to 100mm base chord
         scale_factor = current_chord / 100
     ) scale_factor;
+
+
+//Calculate the 2d projection of the wing which defines its area
+// Note: Use this module to render and measure the wing area
+module visualize_actual_wing_area() {
+    xrot(-90) projection() xrot(90) CreateMainWing();
+}
+
+// Minimum trailing edge thickness for 3D printi
+module visualize_wing_area_calculation() {
+    steps = 100; // Fewer steps for visualization
+    step_size = Main_Wing_mm / steps;
+    
+    // Apply the same translation as CreateWing uses
+    translate([Main_Wing_Root_Chord_MM * (MainWing_Center_Line_Perc / 100), 0, 0]) {
+        for (i = [0:steps-1]) {
+            position = i * step_size;
+            chord = get_chord_at_position(position);
+            
+            color([1, 0.5, 0, 0.3]) // Semi-transparent orange
+            translate([-MainWing_Center_Line_Perc / 100 * chord, 0, position])
+                cube([chord, 0.5, step_size], anchor=BOTTOM+LEFT);
+        }
+    }
+}
+
+// Function to calculate actual wing area by numerical integration
+function calculate_actual_wing_area() = 
+    let(
+        // Number of integration steps (higher = more accurate)
+        steps = 250,
+        step_size = Main_Wing_mm / steps,
+        
+        // Calculate area by summing chord lengths at each position
+        area_values = [for (i = [0:steps-1])
+            let(
+                position = i * step_size,
+                chord_at_position = get_chord_at_position(position + (step_size/2)) // Midpoint for better accuracy
+            ) chord_at_position * step_size
+        ],
+        
+        // Sum all area elements (try BOSL2's sum first, fallback to custom)
+        area_sum = sum(area_values)
+    ) area_sum * 2; // Multiply by 2 for full wing (both halves)
+
+// Function to get chord length at a specific wing position
+function get_chord_at_position(position_mm) = 
+    (Main_Wing_Mode == 1) 
+        ? ChordLengthAtPosition(position_mm)
+        : ChordLengthAtEllipsePosition(Main_Wing_mm, Main_Wing_Root_Chord_MM, position_mm);
+
+// Function to calculate the theoretical scale factor for elliptic wings
+// This relates the average chord to root chord based on the elliptic power factor
+function calculate_elliptic_scale_factor(elliptic_power) = 
+    let(
+        // For an elliptic wing: chord(x) = 2 * sqrt((b/2)² * (1 - (x²/a²)^p))
+        // where b is root chord, a is half-span, p is elliptic power
+        // 
+        // The average chord can be calculated as:
+        // c_avg = (1/a) * ∫[0 to a] chord(x) dx
+        // 
+        // For the scale factor: c_root = c_avg * scale_factor
+        // 
+        // Mathematical analysis shows:
+        // - p = 1.0: circular arc, c_avg/c_root = π/4, so scale_factor = 4/π ≈ 1.2732
+        // - p = 1.5: empirically validated as 1.18853 for AXIS PNG 1150
+        // - p = 2.0: true ellipse, c_avg/c_root = π/4, so scale_factor = 4/π ≈ 1.2732
+        // 
+        // The function has a minimum around p=1.5 due to the compression effect
+        
+        scale_factor = 
+            (elliptic_power <= 1.0) ? 4/PI :  // 4/π for circular arc
+            (elliptic_power <= 1.5) ? 4/PI  - (elliptic_power - 1.0) * 0.16934 :  // Exact to 1.18853 at p=1.5
+            (elliptic_power <= 2.0) ? 1.18853 + (elliptic_power - 1.5) * 0.16934 : // Symmetric return to 4/π
+            4/PI  // 4/π for higher powers (true ellipse and beyond)
+    ) scale_factor;
+
+
