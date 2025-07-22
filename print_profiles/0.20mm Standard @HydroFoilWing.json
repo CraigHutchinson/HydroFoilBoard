@@ -1,0 +1,17 @@
+{
+    "brim_type": "brim_ears",
+    "from": "User",
+    "inherits": "0.20mm Standard @BBL A1",
+    "name": "0.20mm Standard @HydroFoilWing",
+    "print_extruder_id": [
+        "1"
+    ],
+    "print_extruder_variant": [
+        "Direct Drive Standard"
+    ],
+    "print_settings_id": "0.20mm Standard @HydroFoilWing",
+    "seam_position": "back",
+    "version": "2.1.0.18",
+    "wall_generator": "arachne",
+    "wall_sequence": "outer wall/inner wall"
+}
