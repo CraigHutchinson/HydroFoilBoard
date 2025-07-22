@@ -1,4 +1,5 @@
-include <bosl2/std.scad>
+include <BOSL2/std.scad>
+include <BOSL2/joiners.scad>
 
 
 // HYDROFOIL BOARD WING GENERATOR
@@ -583,15 +584,55 @@ if(Build_CalibrationParts) {
 }
 else
 if(Build_TestParts) {
-    // Print the lower 5mm of each wing part
+    /* TEMP
+    // Main Wing Slice(s)
     split_into_parts(Main_Wing_mm, Printer_BuildArea, Build_Scale, af_bbox, 5) main_wing();
 
+    // Rear wing slice(s)
     fwd(20) split_into_parts(Rear_Wing_mm, Printer_BuildArea, Build_Scale, af_bbox, 5) CreateRearWing();
     
+    //Longitudinal slices
     fwd(40) yrot(90) left(Main_Wing_Average_Chord*Build_Scale/2+1)  split_into_parts(Main_Wing_mm, Printer_BuildArea, Build_Scale, af_bbox) intersection() { 
         main_wing();
         right(Main_Wing_Average_Chord*Build_Scale/2) cube([2,100, Main_Wing_mm*Build_Scale], anchor=BOTTOM+CENTER);
     }
+*/
+
+Main_Wing_Slot_Height=3.2;
+Main_Wing_Slot_Width=6;
+Main_Wing_Slot_Taper=1;
+Main_Wing_Slot_Slope=4;
+Main_Wing_Slot_Radius=0.35;
+
+Main_Wing_Slot_Length=Main_Wing_Slot_Width*1.5;
+Main_Wing_Slot_EntryLength=Main_Wing_Slot_Length+0.8; // Length of the entry slot for dovetail
+
+xdistribute(spacing=Main_Wing_Slot_Width+6){
+  cuboid([Main_Wing_Slot_Width+4,Main_Wing_Slot_Length+Main_Wing_Slot_EntryLength+4,4], anchor=BOT)
+    attach(TOP,BOT,align=BACK,inset=2)
+    dovetail("male", slide=Main_Wing_Slot_Length, width=Main_Wing_Slot_Width, height=Main_Wing_Slot_Height, slope=Main_Wing_Slot_Slope, round=true, radius=Main_Wing_Slot_Radius, taper=Main_Wing_Slot_Taper);
+  diff()
+    cuboid([Main_Wing_Slot_Width+4,Main_Wing_Slot_Length+Main_Wing_Slot_EntryLength+4,Main_Wing_Slot_Height+4], anchor=BOT)
+      attach(TOP,BOT,align=BACK,inside=true,inset=2)
+        tag("remove") dovetail("female", slide=Main_Wing_Slot_Length, width=Main_Wing_Slot_Width, height=Main_Wing_Slot_Height, slope=Main_Wing_Slot_Slope, entry_slot_length=Main_Wing_Slot_EntryLength, round=true, radius=Main_Wing_Slot_Radius, taper=Main_Wing_Slot_Taper);
+}
+
+/*
+  left(Main_Wing_Average_Chord){  
+    cuboid([Main_Wing_Average_Chord,Main_Wing_Slot_Width+4,2])
+        right(Main_Wing_SlotOffset) attach(TOP) dovetail("male", slide=Main_Wing_SlotLength, width=Main_Wing_Slot_Width, height=Main_Wing_Slot_Height
+            , back_width=Main_Wing_Slot_Width-Main_Wing_Slot_Taper
+            , spin=90
+            , round=true, radius=Main_Wing_Slot_Radius);
+    fwd(35)
+    diff("remove")
+        cuboid([Main_Wing_Average_Chord,Main_Wing_Slot_Width+4,Main_Wing_Slot_Height+2])
+        right(Main_Wing_SlotOffset) tag("remove") attach(BOTTOM) up(Main_Wing_Slot_Height/2) yrot(1.2) dovetail("female", slide=Main_Wing_SlotLength, width=Main_Wing_Slot_Width, height=Main_Wing_Slot_Height
+            , back_width=Main_Wing_Slot_Width-Main_Wing_Slot_Taper
+            , spin=90
+            , round=true, radius=Main_Wing_Slot_Radius);
+  }
+  */
 }
 else
 if ($preview && Preview_BuiltModel) { 
