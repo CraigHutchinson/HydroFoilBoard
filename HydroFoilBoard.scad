@@ -10,15 +10,19 @@ include <bosl2/std.scad>
 // https://github.com/Beachless/Vase-Wing
 
 
-/* [Hidden] */
+/* [Print Settings] */
+Printer_BuildArea = [250, 250, 250]; // Printer build area in mm
+Printer_NozzleDiameter = 0.4; // Printer nozzle diameter in mm
+Printer_MinimumWallFraction = 0.65; // Minimum wall thickness for printing as fraction of nozzle diameter
 
-    Printer_BuildArea = [250, 250, 250]; // Printer build area in mm
+// Minimum trailing edge thickness for 3D printing compatibility
+Trailing_Edge_Thickness = 2 * (Printer_NozzleDiameter * Printer_MinimumWallFraction); // mm
 
 /* [Global Rendering Settings] */
 // 360deg/5(faceAngle) = 72 facets (affects performance and object smoothness)
-Render_Mode_Facet_Angle = 1; // [1:1:10]
+Render_Mode_Facet_Angle = 1.0; // [0.1:0.1:10]
 // Minimum facet size for rendering (NOTE: coarse value is udef for preview mode)
-Render_Mode_Facet_Size = 0.2; // [0.1:0.1:1.0]
+Render_Mode_Facet_Size = 0.2; // [0.01:0.01:1.0]
 
 
 $fa = $preview ? 10 : Render_Mode_Facet_Angle;            // 360deg/5($fa) = 60 facets (affects performance and object smoothness)
@@ -28,12 +32,32 @@ $fs = $preview ? 1 : Render_Mode_Facet_Size;       // Min facet size (lower for 
 // Render test parts for checking 3D printing settings
 // This will create a test part for each component to check printability and settings
 Build_TestParts = false; // [true:false]
+Build_CalibrationParts = false; // [true:false]
 
 // Preview mode: view Complete model built
 Preview_BuiltModel = true; // [true:false]
 
 // Scale factor (1/3.33 for 1.5 rods, 5/3.33 = 1.5 rods) 
 Build_Scale = 1.0; // [0.1:0.1:3.0] 
+
+/* [Spar Configuration] */
+
+Spar_Rod_Small_Diameter = 2.0;
+Spar_Rod_Large_Diameter = 4.0;
+
+// Stage-1: Set to `undef` to perform quick 10-step hole calibration (~30minute print) to identify hole 0 through 10
+// Stage-2: Set the best-fit value `spar_calibration_*_hole_result` for a long print-volume spar hole calibration (~8hour print)
+
+// NOTE: The absolute tolerance shall be printed when `Build_CalibrationParts` is enabled
+// and shall be used to update the `Spar_Small_Tolerance` and `Spar_Large_Tolerance` respectively
+Spar_Calibration_Small_Hole_ResultIndex = 7; //< Calibration hole start at where 0 for the first hole, 1 for second and so on
+Spar_Calibration_Large_Hole_ResultIndex = 5; //< Calibration hole start at where 0 for the first hole, 1 for second and so on
+
+Spar_Small_Tolerance= 0.21; // Print Tolerance for small spar holes ( 0.21 for 2mm rod based on calibration using PETG HF)
+Spar_Large_Tolerance= 0.15; // Print Tolerance for large spar holes ( 0.15 for 4mm rod based on calibration using PETG HF)
+
+Spar_Hole_Small_Diameter = Spar_Rod_Small_Diameter + Spar_Small_Tolerance;
+Spar_Hole_Large_Diameter = Spar_Rod_Large_Diameter + Spar_Large_Tolerance;
 
 /* [Design+Print Settings] */
 // Enable vase mode printing optimizations
@@ -181,8 +205,6 @@ rib_offset = 1; // [0:1:10]
 // TODO: e817 looks good but not in DB presently
 include <lib/openscad-airfoil/e/e818.scad>
 
-// Minimum trailing edge thickness for 3D printing compatibility
-min_trailing_edge_thickness = 0.25; // mm
 
 // Function to modify airfoil data for 3D printing compatibility
 // This function modifies both path and slice data consistently
@@ -213,7 +235,7 @@ function modify_airfoil_for_printing(original_slice, min_thickness = 0.3) =
 af_vec_slice_original = airfoil_E818_slice();
 
 // Modify airfoil slice data for 3D printing
-af_vec_slice = modify_airfoil_for_printing(af_vec_slice_original, min_trailing_edge_thickness);
+af_vec_slice = modify_airfoil_for_printing(af_vec_slice_original, Trailing_Edge_Thickness);
 
 // Extract surface lines from modified slice data
 af_vec_top = [for (i = af_vec_slice) [i.x, i.y]];       // Top surface line
@@ -284,16 +306,16 @@ function spar_hole_offset(spar) = spar[3];
 // Uses calculated offsets based on mean camber line for optimal structural positioning
 spar_holes = [
     // Full-span Spars go through, the wing but are split at the center line (May optionally be glued into the wing structure)
-    new_spar(10, 2.0, 300, 0.5, "MIDDLE"),
-    new_spar(15, 2.0, 250, -2.5, "TOP"), new_spar(15, 2.0, 250, 3.25, "BOTTOM"),
-    new_spar(35, 2.0, 300, -2.5, "TOP"), new_spar(35, 2.0, 450, 3, "BOTTOM"),
-    new_spar(55, 2.0, 300, -3, "TOP"), new_spar(55, 2.0, 450, 3, "BOTTOM"),
-    new_spar(75, 2.0, 400, -1.0, "MIDDLE"),
+    new_spar(10, Spar_Hole_Small_Diameter, 300, 0.5, "MIDDLE"),
+    new_spar(15, Spar_Hole_Small_Diameter, 250, -2.5, "TOP"), new_spar(15, Spar_Hole_Small_Diameter, 250, 3.25, "BOTTOM"),
+    new_spar(35, Spar_Hole_Small_Diameter, 300, -2.5, "TOP"), new_spar(35, Spar_Hole_Small_Diameter, 450, 3, "BOTTOM"),
+    new_spar(55, Spar_Hole_Small_Diameter, 300, -3, "TOP"), new_spar(55, Spar_Hole_Small_Diameter, 450, 3, "BOTTOM"),
+    new_spar(75, Spar_Hole_Small_Diameter, 400, -1.0, "MIDDLE"),
 
     // Full-span Spars go through the fuselage as one piece
-    new_spar(25, 4.0, 400, 0.5),
-    new_spar(45, 4.0, 400, 1.75),
-    new_spar(65, 4.0, 400, 3.0)
+    new_spar(25, Spar_Hole_Large_Diameter, 400, 0.5),
+    new_spar(45, Spar_Hole_Large_Diameter, 400, 1.75),
+    new_spar(65, Spar_Hole_Large_Diameter, 400, 3.0)
 ];
 
 spar_hole_void_clearance = 0.0;  // Clearance for spar to grid interface (at least double extrusion width)
@@ -452,8 +474,69 @@ echo(str("====================================="));
 }*/
 
 // Main execution
+if(Build_CalibrationParts) {
+    thickness = (Spar_Calibration_Large_Hole_ResultIndex != undef) ? Printer_BuildArea.z-30 : 2.5;
+    crop_x = (Spar_Calibration_Large_Hole_ResultIndex != undef) ? Main_Wing_chord * 0.3 : Printer_BuildArea.x;
+    count = 10; // Number of small/large spar holes to create +1 for 0 tolerance)
+    max_tolerance = 0.30;
+
+    Spar_Calibration_Large_Tolerance = Spar_Calibration_Large_Hole_ResultIndex * (max_tolerance/count);
+    Spar_Calibration_Small_Tolerance = Spar_Calibration_Small_Hole_ResultIndex * (max_tolerance/count);
+    // Calculate calibration tolerance based on result
+    if (Spar_Calibration_Large_Hole_ResultIndex != undef) {
+        echo(str("Calibration Spar-Hole tolerance: ",
+         " Spar_Small_Tolerance= ", Spar_Calibration_Small_Tolerance,
+         " Spar_Large_Tolerance= ", Spar_Calibration_Large_Tolerance));
+    }
+
+    // Print the lower 1.5mm of each wing part
+    union()
+    {
+        intersection() {
+            difference() 
+            {
+                CreateMainWing();
+                
+                 if (Spar_Calibration_Large_Hole_ResultIndex != undef) {
+                    
+                    for (iSpar = [-1:1]) {
+                        tolerance = (iSpar+Spar_Calibration_Large_Hole_ResultIndex) * (max_tolerance/count);
+
+                        smallSpar=new_spar(15 + ((iSpar+1) * 4) , Spar_Rod_Small_Diameter + tolerance, thickness+2, Spar_Rod_Small_Diameter/2 + 1.5+max_tolerance, "BOTTOM");
+                        CreateSparHole(smallSpar);
+
+                        largeSpar=new_spar(15 + ((iSpar+1) * 4) , Spar_Rod_Large_Diameter + tolerance, thickness+2, -(Spar_Rod_Large_Diameter/2 +1.5+max_tolerance), "TOP");
+                        CreateSparHole(largeSpar);
+                    }
+                 }
+                 else
+                 {
+                    //Small calibrations
+                    for (iSpar = [0:count]) {
+                        tolerance = iSpar * (max_tolerance/count);
+
+                        smallSpar=new_spar(15 + (iSpar * 4) , Spar_Rod_Small_Diameter + tolerance, thickness+2, Spar_Rod_Small_Diameter/2 + 1.5+max_tolerance, "BOTTOM");
+                        CreateSparHole(smallSpar);
+
+                        largeSpar=new_spar(15 + (iSpar * 4) , Spar_Rod_Large_Diameter + tolerance, thickness+2, -(Spar_Rod_Large_Diameter/2 +1.5+max_tolerance), "TOP");
+                        CreateSparHole(largeSpar);
+                    }
+                }
+            };
+            cube([crop_x, Printer_BuildArea.y, thickness], anchor=BOTTOM+LEFT);
+        }
+        
+        dim_label =(Spar_Calibration_Large_Hole_ResultIndex != undef) ? str("-", Spar_Calibration_Large_Hole_ResultIndex, "+") : str("0-",max_tolerance);
+
+        translate([8, 0.5, thickness])
+            linear_extrude(height = 0.5)
+                 text(dim_label, size = 4, valign = "center", halign = "left");
+                 
+    }
+}
+else
 if(Build_TestParts) {
-    // Print the lower 1mm of each wing part
+    // Print the lower 5mm of each wing part
     split_into_parts(Main_Wing_mm, Printer_BuildArea, Build_Scale, af_bbox, 5) main_wing();
 
     fwd(20) split_into_parts(Rear_Wing_mm, Printer_BuildArea, Build_Scale, af_bbox, 5) CreateRearWing();
