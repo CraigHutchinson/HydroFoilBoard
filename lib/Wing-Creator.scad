@@ -6,9 +6,11 @@
  * Depends on BOSL2 library for advanced geometric operations.
  * 
  * NEW: Connection Features for Multi-Part Printing
- * - Use CreateWingWithConnections() for wings with male/female connectors
+ * - Use CreateWing(wing_config, add_connections=true) for wings with male/female connectors
+ * - Male connectors: Tapered extrusions added to wing ends (union operation)
+ * - Female connectors: Tapered cavities subtracted from wing starts (difference operation)
+ * - Configurable wall thickness (default 0.4mm) and connection length (default 4mm)
  * - Use CalculateWingZPositions() and CalculateWingSliceData() to access z positions and slice data
- * - Connection features create tapered joints between wing sections for assembly
  */
 
 include <BOSL2/std.scad>
@@ -129,7 +131,6 @@ function CalculateWingSliceData(z_pos, wing_config, cached_paths) =
         // Get the base airfoil path using cached paths
         base_path = GetAirfoilPath(nz, wing_config.airfoil.tip_change_nz, wing_config.airfoil.center_change_nz, cached_paths)
     ) object(
-        z_pos = z_pos,
         nz = nz,
         current_chord_mm = current_chord_mm,
         anhedral = anhedral,
@@ -154,7 +155,7 @@ function ApplyWingTransforms(slice_data, wing_config) =
             scaled_path,
 
         // Create 3D path first
-        path_3d = path3d(washout_path, slice_data.z_pos),
+        path_3d = path3d(washout_path, slice_data.nz * wing_config.wing_mm),
         
         // Apply anhedral rotation around x-axis (rotate the 3D airfoil section)
         rotated_path_3d = (slice_data.anhedral.angle != 0) ? 
@@ -204,136 +205,69 @@ function CalculateWingZPositions(wing_config) =
     ];
 
 /**
- * Create a tapered connection profile for joining wing sections
- * @param base_path - The base airfoil path to scale
- * @param taper_factor - Scale factor for the taper (1.0 = no taper, 0.8 = 20% smaller)
- * @param is_male - true for male connector (smaller), false for female (larger)
- * @return scaled path for connection
+ * Create a tapered connector extrusion for male connections
+ * @param base_path - The base airfoil path to extrude
+ * @param connection_length - Length of the connector in mm
+ * @param wall_thickness - Wall thickness for female side (male will be smaller by this amount)
+ * @param z_start - Starting Z position for the extrusion
+ * @param wing_config - Wing configuration for transforms
+ * @param slice_data - Slice data at the connection point
  */
-function CreateConnectionProfile(base_path, taper_factor=0.95, is_male=true) =
-    let(
-        // Male connections are smaller (taper_factor), female are larger (1/taper_factor)
-        scale_factor = is_male ? taper_factor : 1/taper_factor
-    ) scale([scale_factor, scale_factor], p=base_path);
-
-/**
- * Add connection features to wing section
- * @param profiles - Array of wing profiles
- * @param z_positions - Array of z positions corresponding to profiles
- * @param wing_config - Wing configuration object
- * @param cached_paths - Pre-cached airfoil paths
- * @param connection_length - Length of connection taper in mm
- * @param taper_factor - Scale factor for connection taper
- * @return enhanced profiles array with connection features
- */
-function AddConnectionFeatures(profiles, z_positions, wing_config, cached_paths, connection_length=5, taper_factor=0.95) =
-    let(
-        bounds = get_current_split_bounds(wing_config.wing_mm),
-        
-        // Generate additional profiles for connections
-        enhanced_z_positions = [],
-        enhanced_profiles = []
-    ) 
-    [
-        for (i = [0:len(profiles)-1]) 
-            let(
-                z_pos = z_positions[i],
-                profile = profiles[i],
-                
-                // Check if this is the start of the current section (needs male connector)
-                is_section_start = (i == 0 && bounds.start_z > 0),
-                
-                // Check if this is the end of the current section (needs female connector)
-                is_section_end = (i == len(profiles)-1 && bounds.end_z < wing_config.wing_mm),
-                
-                // Generate connection profiles if needed
-                connection_profiles = []
-            ) 
-            // For now, return the original profile
-            // The connection generation will be implemented when this function is called
-            profile
+module CreateMaleConnector(base_path, connection_length, wall_thickness, z_start, wing_config, slice_data) {
+    // Create tapered male connector that gets smaller towards the tip
+    connector_profiles = [
+        for (i = [0:4]) let(
+            progress = i / 4,
+            z_pos = z_start + progress * connection_length,
+            // Taper from full size to (full size - wall_thickness * 2)
+            scale_factor = 0.75, //1 - (progress * wall_thickness * 2 / slice_data.current_chord_mm),
+            scaled_path = scale([scale_factor, scale_factor], p=base_path)
+        ) ApplyWingTransforms(
+            object(
+                z_pos = z_pos,
+                nz = z_pos / wing_config.wing_mm,
+                current_chord_mm = slice_data.current_chord_mm,
+                anhedral = slice_data.anhedral,
+                base_path = scaled_path
+            ), 
+            wing_config
+        )
     ];
+    
+    skin(connector_profiles, slices=0, refine=1, method="direct", sampling="segment");
+}
 
 /**
- * Generate connection geometry for wing sections
- * Creates male and female connectors at section boundaries
- * @param wing_config - Wing configuration object
- * @param connection_length - Length of connection taper in mm
- * @param taper_factor - Scale factor for connection taper
- * @param is_male_end - Whether the end of this section should be male (true) or female (false)
+ * Create a tapered connector cavity for female connections
+ * @param base_path - The base airfoil path to extrude
+ * @param connection_length - Length of the connector in mm
+ * @param wall_thickness - Wall thickness for female side
+ * @param z_end - Ending Z position for the cavity
+ * @param wing_config - Wing configuration for transforms
+ * @param slice_data - Slice data at the connection point
  */
-module CreateWingWithConnections(wing_config, connection_length=5, taper_factor=0.95, is_male_end=true) {
+module CreateFemaleConnector(base_path, connection_length, wall_thickness, z_end, wing_config, slice_data) {
+    // Create tapered female cavity that gets larger towards the inside
+    connector_profiles = [
+        for (i = [0:4]) let(
+            progress = i / 4,
+            z_pos = z_end - connection_length + progress * connection_length,
+            // Taper from (full size + wall_thickness * 2) to full size
+            scale_factor = 1 + ((1 - progress) * wall_thickness * 2 / slice_data.current_chord_mm),
+            scaled_path = scale([scale_factor, scale_factor], p=base_path)
+        ) ApplyWingTransforms(
+            object(
+                z_pos = z_pos,
+                nz = z_end,
+                current_chord_mm = slice_data.current_chord_mm,
+                anhedral = slice_data.anhedral,
+                base_path = scaled_path
+            ), 
+            wing_config
+        )
+    ];
     
-    // Cache airfoil paths once at the beginning for better performance
-    cached_paths = CalculateAirfoilPaths();
-    
-    // Calculate z positions using the exposed function
-    z_positions = CalculateWingZPositions(wing_config);
-    bounds = get_current_split_bounds(wing_config.wing_mm);
-    
-    translate([wing_config.root_chord_mm * wing_config.center_line_nx, 0, 0]) {
-        
-        // Create main wing profiles
-        main_profiles = [
-            for (z_pos = z_positions) 
-                BuildWingProfile(z_pos, wing_config, cached_paths)
-        ];
-        
-        // Enhanced z_positions and profiles including connections
-        enhanced_z_positions = [];
-        enhanced_profiles = [];
-        
-        // Add start connection (female) if this is not the root section
-        if (bounds.start_z > 0) {
-            // Female connector at start
-            start_z_conn = bounds.start_z - connection_length;
-            start_slice_data = CalculateWingSliceData(bounds.start_z, wing_config, cached_paths);
-            start_profile = ApplyWingTransforms(start_slice_data, wing_config);
-            start_conn_profile = CreateConnectionProfile(start_slice_data.base_path, taper_factor, false);
-            start_conn_profile_3d = ApplyWingTransforms(
-                object(
-                    z_pos = start_z_conn,
-                    nz = start_z_conn / wing_config.wing_mm,
-                    current_chord_mm = start_slice_data.current_chord_mm,
-                    anhedral = start_slice_data.anhedral,
-                    base_path = start_conn_profile
-                ), 
-                wing_config
-            );
-            
-            enhanced_z_positions = concat([start_z_conn], enhanced_z_positions);
-            enhanced_profiles = concat([start_conn_profile_3d], enhanced_profiles);
-        }
-        
-        // Add main profiles
-        enhanced_z_positions = concat(enhanced_z_positions, z_positions);
-        enhanced_profiles = concat(enhanced_profiles, main_profiles);
-        
-        // Add end connection (male or female) if this is not the tip section
-        if (bounds.end_z < wing_config.wing_mm) {
-            // Male or female connector at end based on parameter
-            end_z_conn = bounds.end_z + connection_length;
-            end_slice_data = CalculateWingSliceData(bounds.end_z, wing_config, cached_paths);
-            end_profile = ApplyWingTransforms(end_slice_data, wing_config);
-            end_conn_profile = CreateConnectionProfile(end_slice_data.base_path, taper_factor, is_male_end);
-            end_conn_profile_3d = ApplyWingTransforms(
-                object(
-                    z_pos = end_z_conn,
-                    nz = end_z_conn / wing_config.wing_mm,
-                    current_chord_mm = end_slice_data.current_chord_mm,
-                    anhedral = end_slice_data.anhedral,
-                    base_path = end_conn_profile
-                ), 
-                wing_config
-            );
-            
-            enhanced_z_positions = concat(enhanced_z_positions, [end_z_conn]);
-            enhanced_profiles = concat(enhanced_profiles, [end_conn_profile_3d]);
-        }
-        
-        // Create the wing surface using BOSL2 skin() function
-        skin(enhanced_profiles, slices=0, refine=1, method="direct", sampling="segment");
-    }
+    skin(connector_profiles, slices=0, refine=1, method="direct", sampling="segment");
 }
 
 /**
@@ -413,33 +347,57 @@ function AnhedralAtPosition(nz, anhedral_start_nz, wing_mm, anhedral_degrees) =
  * This is the new unified wing creation function that takes a wing configuration object
  * @param wing_config - Wing configuration object with all parameters
  * @param add_connections - Whether to add connection features for multi-part printing
- * @param connection_length - Length of connection taper in mm
- * @param taper_factor - Scale factor for connection taper (default: 0.95)
+ * @param connection_length - Length of connection taper in mm (default: 4mm)
+ * @param wall_thickness - Wall thickness for connections in mm (default: 0.4mm)
+ * @param is_male_end - Whether the end of this section should be male (true) or female (false)
  */
-module CreateWing(wing_config, add_connections=false, connection_length=5, taper_factor=0.95) {
+module CreateWing(wing_config, add_connections=false, connection_length=4, wall_thickness=0.4, is_male_end=true) {
     
     // Cache airfoil paths once at the beginning for better performance
     cached_paths = CalculateAirfoilPaths();
     
     // Calculate z positions using the new exposed function
     z_positions = CalculateWingZPositions(wing_config);
+    bounds = get_current_split_bounds(wing_config.wing_mm);
     
     translate([wing_config.root_chord_mm * wing_config.center_line_nx, 0, 0]) {
-        // Create wing profiles for the calculated z positions using helper function
-        base_profiles = [
-            for (z_pos = z_positions) 
-                BuildWingProfile(z_pos, wing_config, cached_paths)
-        ];
         
-        // Add connection features if requested (simplified version)
-        final_profiles = add_connections ? 
-            concat(
-                // Add connection logic here if needed for the function-based approach
-                base_profiles
-            ) :
-            base_profiles;
-        
-        // Create the wing surface using BOSL2 skin() function
-        skin(final_profiles, slices=0, refine=1, method="direct", sampling="segment");
+        // Always use union/difference structure, but make connectors conditional
+        difference() {
+            union() {
+                // Main wing body
+                main_wing_profiles = [
+                    for (z_pos = z_positions) 
+                        BuildWingProfile(z_pos, wing_config, cached_paths)
+                ];
+                skin(main_wing_profiles, slices=0, refine=1, method="direct", sampling="segment");
+                
+                // Add male connector at end if needed
+                if (add_connections && bounds.end_z < wing_config.wing_mm && is_male_end) {
+                    end_slice_data = CalculateWingSliceData(bounds.end_z, wing_config, cached_paths);
+                    CreateMaleConnector(
+                        end_slice_data.base_path, 
+                        connection_length, 
+                        wall_thickness, 
+                        bounds.end_z, 
+                        wing_config, 
+                        end_slice_data
+                    );
+                }
+            }
+            
+            // Subtract female connector at start if needed
+            if (add_connections && bounds.start_z > 0) {
+                start_slice_data = CalculateWingSliceData(bounds.start_z, wing_config, cached_paths);
+                CreateFemaleConnector(
+                    start_slice_data.base_path, 
+                    connection_length, 
+                    wall_thickness, 
+                    bounds.start_z, 
+                    wing_config, 
+                    start_slice_data
+                );
+            }
+        }
     }
 }

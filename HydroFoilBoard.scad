@@ -436,7 +436,7 @@ module CreateRearWing() {
 module main_wing() {
     difference() {
         difference() {
-            CreateWing(main_wing_config);
+            CreateWing(main_wing_config, add_connections=true);
 
             if (add_inner_grid) {
                 union() {
