@@ -116,10 +116,18 @@ function is_split_mode() = ($split_print_mode == true && $split_current_index !=
 
 /**
  * Get the current split bounds in wing coordinates
- * Returns [start_z, end_z] for the current split, or [0, wing_length] if not splitting
+ * Returns object with start_z and end_z for the current split, or [0, wing_length] if not splitting
  */
 function get_current_split_bounds(wing_length) = 
-    is_split_mode() ? [$split_z_start, $split_z_end] : [0, wing_length];
+    is_split_mode() ? 
+        object(
+            start_z = max( $split_z_start, 0),
+            end_z = min( $split_z_end, wing_length)
+        ) : 
+        object(
+            start_z = 0,
+            end_z = wing_length
+        );
 
 /**
  * Calculate the chord length at a specific wing position using index (wing_mode == 1)

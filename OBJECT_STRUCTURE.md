@@ -15,12 +15,12 @@ main_wing_config = object(
     tip_chord_mm = Main_Wing_Tip_Chord_MM,      // Tip chord length in mm
     wing_mode = Main_Wing_Mode,                 // 1=Trapezoidal, 2=Elliptic
     elliptic_pow = Main_Wing_Eliptic_Pow,       // Elliptic power factor
-    center_line_perc = MainWing_Center_Line_Perc, // Center line percentage from LE
+    center_line_nx = MainWing_Center_Line_Perc, // Center line percentage from LE
     
     // Anhedral configuration
     anhedral = object(
         degrees = Wing_Anhedral_Degrees,        // Anhedral angle in degrees
-        start_perc = Wing_Anhedral_Start_At_Percentage // Where anhedral starts (% from root)
+        start_nz = Wing_Anhedral_Start_At_Percentage // Where anhedral starts (% from root)
     ),
     
     // Washout configuration  
@@ -32,8 +32,8 @@ main_wing_config = object(
     
     // Airfoil transition configuration
     airfoil = object(
-        tip_change_perc = tip_airfoil_change_perc,     // Where to change to tip airfoil (%)
-        center_change_perc = center_airfoil_change_perc // Where to change to center airfoil (%)
+        tip_change_nz = tip_airfoil_change_perc,     // Where to change to tip airfoil (%)
+        center_change_nz = center_airfoil_change_perc // Where to change to center airfoil (%)
     )
 );
 ```

@@ -129,25 +129,25 @@ main_wing_config = object(
     tip_chord_mm = Main_Wing_Tip_Chord_MM,
     wing_mode = Main_Wing_Mode,
     elliptic_pow = Main_Wing_Eliptic_Pow,
-    center_line_perc = MainWing_Center_Line_Perc,
+    center_line_nx = MainWing_Center_Line_Perc/100,
     
     // Anhedral configuration
     anhedral = object(
         degrees = Wing_Anhedral_Degrees,
-        start_perc = Wing_Anhedral_Start_At_Percentage
+        start_nz = Wing_Anhedral_Start_At_Percentage/100
     ),
     
     // Washout configuration
     washout = object(
         degrees = Main_Wing_Washout_Deg,
-        start = Main_Wing_Washout_Start,
-        pivot_perc = Main_Wing_Washout_Pivot_Perc
+        start_nz = Main_Wing_Washout_Start / Main_Wing_mm,
+        pivot_nx = Main_Wing_Washout_Pivot_Perc/100 // Pivot point as fraction from LE (0 to 1)
     ),
     
     // Airfoil transition configuration
     airfoil = object(
-        tip_change_perc = tip_airfoil_change_perc,
-        center_change_perc = center_airfoil_change_perc
+        tip_change_nz = tip_airfoil_change_perc/100,
+        center_change_nz = center_airfoil_change_perc/100
     ),
     
     // Print splitting configuration
@@ -206,25 +206,25 @@ rear_wing_config = object(
     tip_chord_mm = Rear_Wing_tip_chord_mm,
     wing_mode = Rear_Wing_mode,
     elliptic_pow = Rear_Wing_eliptic_pow,
-    center_line_perc = Rear_MainWing_Center_Line_Perc,
+    center_line_nx = Rear_MainWing_Center_Line_Perc/100,
     
     // Anhedral configuration
     anhedral = object(
         degrees = Rear_Wing_Anhedral_Degrees,
-        start_perc = Rear_Wing_Anhedral_Start_At_Percentage
+        start_nz = Rear_Wing_Anhedral_Start_At_Percentage/100
     ),
     
     // Washout configuration
     washout = object(
         degrees = Rear_Wing_Washout_Deg,
-        start = Rear_Wing_Washout_Start,
-        pivot_perc = Rear_Wing_Washout_Pivot_Perc
+        start_nz = Rear_Wing_Washout_Start / Rear_Wing_mm,
+        pivot_nx = Rear_Wing_Washout_Pivot_Perc/100
     ),
     
     // Airfoil transition configuration
     airfoil = object(
-        tip_change_perc = tip_airfoil_change_perc,
-        center_change_perc = center_airfoil_change_perc
+        tip_change_nz = tip_airfoil_change_perc/100,
+        center_change_nz = center_airfoil_change_perc/100
     ),
     
     // Print splitting configuration
