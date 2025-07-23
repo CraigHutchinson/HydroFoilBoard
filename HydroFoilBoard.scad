@@ -1,7 +1,6 @@
 include <BOSL2/std.scad>
 include <BOSL2/joiners.scad>
 
-
 // HYDROFOIL BOARD WING GENERATOR
 // RC wing generator for Vase mode printing
 //
@@ -456,6 +455,19 @@ Main_Wing_Area_ErrorPercentage = round((Main_Wing_Area_Actual/100 - Main_Wing_ar
 
 Main_Wing_Area_DoAnalysis = (abs(Main_Wing_Area_ErrorPercentage) > 1);
 
+// TEST: Check OpenSCAD version and feature support
+echo("=== OPENSCAD FEATURE TEST ===");
+echo("OpenSCAD version:", version());
+echo("Preview mode:", $preview);
+
+// Check for available features if supported
+if (!is_undef($feature_list)) {
+    echo("Available features:", $feature_list);
+} else {
+    echo("$feature_list not available in this version");
+}
+
+
 // Display hydrofoil specifications
 echo("========================================");
 echo("     HYDROFOIL BOARD SPECIFICATIONS     ");
@@ -512,8 +524,6 @@ echo("========================================");
 /*else if (add_inner_grid == false && spar_hole == true) {
     echo("ERROR: add_inner_grid needs to be true for spar_hole to be true");
 }*/
-
-
 
 
 if ( Main_Wing_Area_DoAnalysis )
