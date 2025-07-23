@@ -747,8 +747,8 @@ function MainWingSliceScaleFactorEliptical(position_mm) =
     let(
         // Calculate chord at this position using elliptic distribution
         current_chord = (Main_Wing_Mode == 1) 
-            ? ChordLengthTrapezoidal(position_mm)
-            : ChordLengthElliptical(position_mm, Main_Wing_mm, Main_Wing_Root_Chord_MM, Main_Wing_Eliptic_Pow),
+            ? ChordLengthTrapezoidal(position_mm / Main_Wing_mm, Main_Wing_Root_Chord_MM, Main_Wing_Tip_Chord_MM)
+            : ChordLengthElliptical(position_mm / Main_Wing_mm, Main_Wing_Root_Chord_MM, Main_Wing_Eliptic_Pow),
         
         // Scale factor normalized to 100mm base chord
         scale_factor = current_chord / 100
@@ -801,8 +801,8 @@ function calculate_actual_wing_area() =
 // Function to get chord length at a specific wing position
 function get_chord_at_position(position_mm) = 
     (Main_Wing_Mode == 1) 
-        ? ChordLengthTrapezoidal(position_mm)
-        : ChordLengthElliptical(position_mm, Main_Wing_mm, Main_Wing_Root_Chord_MM, Main_Wing_Eliptic_Pow);
+        ? ChordLengthTrapezoidal(position_mm / Main_Wing_mm, Main_Wing_Root_Chord_MM, Main_Wing_Tip_Chord_MM)
+        : ChordLengthElliptical(position_mm / Main_Wing_mm, Main_Wing_Root_Chord_MM, Main_Wing_Eliptic_Pow);
 
 
 

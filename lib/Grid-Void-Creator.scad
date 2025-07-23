@@ -129,7 +129,7 @@ module GridESlice(i, scale_factor, LE)
 module GridSlice(z_location, i, LE)
 {
     current_chord_mm = (wing_mode == 1) ? ChordLengthAtIndex(i, Main_Wing_Sections)
-                                        : ChordLengthElliptical(z_location, Main_Wing_mm, Main_Wing_Root_Chord_MM, Main_Wing_Eliptic_Pow);
+                                        : ChordLengthElliptical(z_location / Main_Wing_mm, Main_Wing_Root_Chord_MM, Main_Wing_Eliptic_Pow);
 
     scale_factor = current_chord_mm / 100;
     translate([ 0, 0, z_location ]) translate([ -MainWing_Center_Line_Perc / 100 * current_chord_mm, 0, 0 ])

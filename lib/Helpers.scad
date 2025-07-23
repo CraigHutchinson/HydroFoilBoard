@@ -3,10 +3,6 @@ function ChordLengthAtIndex(index,
                             loc_wing_sections) = Main_Wing_Root_Chord_MM -
                                                  ((Main_Wing_Root_Chord_MM - Main_Wing_Tip_Chord_MM) / loc_wing_sections) * index;
 
-function ChordLengthTrapezoidal(length_from_root_mm) 
-= Main_Wing_Root_Chord_MM - (Main_Wing_Root_Chord_MM - Main_Wing_Tip_Chord_MM) 
-* (length_from_root_mm / Main_Wing_mm);
-
 // EaseInOut cubic function from t in [0,1] to eased progress [0,1]
 function easeInOutCubic(t) = 
     t < 0.5? 4 * t * t * t : 1 - pow(-2 * t + 2, 3) / 2;
@@ -130,30 +126,23 @@ function get_current_split_bounds(wing_length) =
         );
 
 /**
- * Calculate the chord length at a specific wing position using index (wing_mode == 1)
- * @param z_location - Z position of this slice along the wing
+ * Calculate the chord length at a specific wing position using normalized z (0 to 1)
+ * @param normalized_z - Normalized position along the wing (0 = root, 1 = tip)
  * @param root_chord_mm - Root chord length in mm
  * @param tip_chord_mm - Tip chord length in mm
  * @return current_chord_mm - Chord length in millimeters at this position
  */
-function ChordLengthTrapezoidal(z_location, root_chord_mm, tip_chord_mm) = 
-    let(
-        tip_to_root_ratio = tip_chord_mm / root_chord_mm,
-        progress = z_location / wing_mm,
-        current_chord_mm = root_chord_mm * (1 - progress * (1 - tip_to_root_ratio))
-    ) current_chord_mm;
+function ChordLengthTrapezoidal(normalized_z, root_chord_mm, tip_chord_mm) = 
+    root_chord_mm - (root_chord_mm - tip_chord_mm) * normalized_z;
 
 /**
- * Calculate the chord length at a specific wing position using z_location (wing_mode > 1)
- * @param z_location - Z position of this slice along the wing
- * @param wing_mm - Wing half-span length
+ * Calculate the chord length at a specific wing position using normalized z (0 to 1)
+ * @param normalized_z - Normalized position along the wing (0 = root, 1 = tip)
  * @param root_chord_mm - Root chord length in mm
  * @param pow_factor - Elliptic distribution power factor
  * @return current_chord_mm - Chord length in millimeters at this position
  */
-function ChordLengthElliptical(z_location, wing_mm, root_chord_mm, pow_factor = 1.0) = 
-        let(
-        // Fix: The formula should use wing_mm and root_chord_mm correctly
-        normalized_pos = z_location / wing_mm,  // 0 to 1
-        chord_ratio = pow(1 - pow(normalized_pos, pow_factor), 1/pow_factor)
+function ChordLengthElliptical(normalized_z, root_chord_mm, pow_factor = 1.0) = 
+    let(
+        chord_ratio = pow(1 - pow(normalized_z, pow_factor), 1/pow_factor)
     ) root_chord_mm * chord_ratio;
