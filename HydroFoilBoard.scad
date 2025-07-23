@@ -148,6 +148,15 @@ main_wing_config = object(
     airfoil = object(
         tip_change_perc = tip_airfoil_change_perc,
         center_change_perc = center_airfoil_change_perc
+    ),
+    
+    // Print splitting configuration
+    print = object(
+        total_length = Main_Wing_mm,
+        build_area = Printer_BuildArea,
+        scale = Build_Scale,
+        splits = ceil(Main_Wing_mm / (Printer_BuildArea.z * Build_Scale)),
+        splits_length = Main_Wing_mm / ceil(Main_Wing_mm / (Printer_BuildArea.z * Build_Scale))
     )
 );
 
@@ -216,6 +225,15 @@ rear_wing_config = object(
     airfoil = object(
         tip_change_perc = tip_airfoil_change_perc,
         center_change_perc = center_airfoil_change_perc
+    ),
+    
+    // Print splitting configuration
+    print = object(
+        total_length = Rear_Wing_mm,
+        build_area = Printer_BuildArea,
+        scale = Build_Scale,
+        splits = ceil(Rear_Wing_mm / (Printer_BuildArea.z * Build_Scale)),
+        splits_length = Rear_Wing_mm / ceil(Rear_Wing_mm / (Printer_BuildArea.z * Build_Scale))
     )
 );
 
@@ -631,19 +649,18 @@ if(Build_CalibrationParts) {
 }
 else
 if(Build_TestParts) {
-    /* TEMP
-    // Main Wing Slice(s)
-    split_into_parts(Main_Wing_mm, Printer_BuildArea, Build_Scale, af_bbox, 5) main_wing();
-
-    // Rear wing slice(s)
-    fwd(20) split_into_parts(Rear_Wing_mm, Printer_BuildArea, Build_Scale, af_bbox, 5) CreateRearWing();
     
-    //Longitudinal slices
-    fwd(40) yrot(90) left(Main_Wing_Average_Chord*Build_Scale/2+1)  split_into_parts(Main_Wing_mm, Printer_BuildArea, Build_Scale, af_bbox) intersection() { 
+    // Main Wing Slice(s) - using wing configuration
+    split_wing_into_parts(main_wing_config.print, 5) main_wing();
+
+    // Rear wing slice(s) - using wing configuration
+    fwd(20) split_wing_into_parts(rear_wing_config.print, 5) CreateRearWing();
+
+    //Longitudinal slices - using wing configuration
+    fwd(40) yrot(90) left(Main_Wing_Average_Chord*Build_Scale/2+1) split_wing_into_parts(main_wing_config.print) intersection() {
         main_wing();
-        right(Main_Wing_Average_Chord*Build_Scale/2) cube([2,100, Main_Wing_mm*Build_Scale], anchor=BOTTOM+CENTER);
+        right(Main_Wing_Average_Chord*Build_Scale/2) cube([2,100, main_wing_config.wing_mm*Build_Scale], anchor=BOTTOM+CENTER);
     }
-*/
 
 Main_Wing_Slot_Height=3.2;
 Main_Wing_Slot_Width=6;
@@ -696,9 +713,8 @@ if ($preview && Preview_BuiltModel) {
 }
 else 
 {
-
-    // Render mode - split into printable parts
-    split_into_parts(main_wing_config.wing_mm, Printer_BuildArea, Build_Scale, af_bbox) main_wing();
+    // Render mode - split into printable parts using wing configuration
+    split_wing_into_parts(main_wing_config.print) main_wing();
 }
 
 // CARBON SPAR SYSTEM

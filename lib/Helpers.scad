@@ -53,3 +53,23 @@ module split_into_parts( total_length, build_area, scale=1.0, bbox=af_bbox, prin
         }
     }
 }
+
+// Function to split a module into printable parts using wing configuration
+// Uses the precalculated print configuration from wing_config.print
+module split_wing_into_parts(print_config, print_height_mm=0) {
+    
+    // Calculate part spacing using the global af_bbox (available when this function runs)
+    part_spacing = af_bbox.w - af_bbox.z + (print_config.build_area.x / print_config.splits);
+    
+    // If print_height_mm > 0, only print up to that height from the bottom of each part
+    part_height = (print_height_mm > 0 && print_height_mm < print_config.splits_length) ? 
+        print_height_mm : print_config.splits_length;
+
+    for (i = [0:print_config.splits-1]) {
+        fwd(i * part_spacing)
+        intersection() {
+            down(i * print_config.splits_length) children();
+            cube([print_config.build_area.x, print_config.build_area.y, part_height], anchor=BOTTOM+LEFT);
+        }
+    }
+}
