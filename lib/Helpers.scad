@@ -149,29 +149,3 @@ function ChordLengthElliptical(z_location, wing_mm, root_chord_mm, pow_factor = 
         normalized_pos = z_location / wing_mm,  // 0 to 1
         chord_ratio = pow(1 - pow(normalized_pos, pow_factor), 1/pow_factor)
     ) root_chord_mm * chord_ratio;
-
-// Function to calculate the theoretical scale factor for elliptic wings
-// This relates the average chord to root chord based on the elliptic power factor
-function calculate_elliptic_scale_factor(elliptic_power) = 
-    let(
-        // For an elliptic wing: chord(x) = 2 * sqrt((b/2)² * (1 - (x²/a²)^p))
-        // where b is root chord, a is half-span, p is elliptic power
-        // 
-        // The average chord can be calculated as:
-        // c_avg = (1/a) * ∫[0 to a] chord(x) dx
-        // 
-        // For the scale factor: c_root = c_avg * scale_factor
-        // 
-        // Mathematical analysis shows:
-        // - p = 1.0: circular arc, c_avg/c_root = π/4, so scale_factor = 4/π ≈ 1.2732
-        // - p = 1.5: empirically validated as 1.18853 for AXIS PNG 1150
-        // - p = 2.0: true ellipse, c_avg/c_root = π/4, so scale_factor = 4/π ≈ 1.2732
-        // 
-        // The function has a minimum around p=1.5 due to the compression effect
-        
-        scale_factor = 
-            (elliptic_power <= 1.0) ? 4/PI :  // 4/π for circular arc
-            (elliptic_power <= 1.5) ? 4/PI  - (elliptic_power - 1.0) * 0.16934 :  // Exact to 1.18853 at p=1.5
-            (elliptic_power <= 2.0) ? 1.18853 + (elliptic_power - 1.5) * 0.16934 : // Symmetric return to 4/π
-            4/PI  // 4/π for higher powers (true ellipse and beyond)
-    ) scale_factor;

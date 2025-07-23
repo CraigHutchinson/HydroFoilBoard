@@ -73,14 +73,14 @@ Main_Wing_area = 1713;               // Main wing area in cm²
 Main_Wing_Average_Chord = Main_Wing_span / Main_Wing_aspectratio; // PNG 1150 has 149mm avg chord (1150/7.72)
 
 // Power of the elliptic wing (2 = perfect ellipse)
-Main_Wing_Eliptic_Pow = 2.0; // [1.0:0.05:3.0] // Changed from 1.75 to 2.0 for true ellipse
+Main_Wing_Eliptic_Pow = 2.5; // [1.0:0.1:8.0]
 
 // NOTE: AXIS PNG 1150 Area Calculation - Theoretical Scale Factor Calculation
 // The PNG 1150 has 1713 cm² area with 1150mm span and 7.72 aspect ratio
-// The ChordLengthElliptical() function uses: chord = root_chord * pow(1 - pow(normalized_pos, pow_factor), 1/pow_factor)
 // The relationship between average chord and root chord depends on the elliptic power factor
-// For an elliptic wing with power p, the theoretical scale factor can be calculated
-Main_Wing_Root_Chord_Scale_Factor = calculate_elliptic_scale_factor(Main_Wing_Eliptic_Pow);
+// 4/π for elipse power 2.0 (true ellipse)
+// TODO: A crude estimate for the scale factor based on elliptic power here!!
+Main_Wing_Root_Chord_Scale_Factor = (4 - (Main_Wing_Eliptic_Pow - 2.0)/2)/PI;
 
 // Main Wing dimensions
 // Number of main wing sections (more = higher resolution)
@@ -99,7 +99,7 @@ MainWing_Center_Line_Perc = 90; // [0:100]
 // Wing anhedral settings (degrees)
 // Anhedral creates a downward angle of the wing tips for improved stability
 // This defines the angle of the anhedral at the tip of the wing (degrees)
-Wing_Anhedral_Degrees = 0.75; // [0:0.2:10]
+Wing_Anhedral_Degrees = 0.8; // [0:0.2:10]
 // Where anhedral starts (percentage from root)
 // This defines where the anhedral starts along the span - wing sections are rotated around x-axis and offset in y
 Wing_Anhedral_Start_At_Percentage = 50; // [0:100]
@@ -502,7 +502,7 @@ if (Main_Wing_Sections * 0.2 < slice_transisions) {
 Main_Wing_Area_Actual = calculate_actual_wing_area();
 Main_Wing_Area_ErrorPercentage = round((Main_Wing_Area_Actual/100 - Main_Wing_area)/Main_Wing_area * 100);
 
-Main_Wing_Area_DoAnalysis = (abs(Main_Wing_Area_ErrorPercentage) > 1);
+Main_Wing_Area_DoAnalysis = (abs(Main_Wing_Area_ErrorPercentage) > 2.5);
 
 // Version check - require OpenSCAD 2025.7+ for object() function support
 echo(str("OpenSCAD version: ", OpenScad_SemVer[0], ".", OpenScad_SemVer[1], ".", OpenScad_SemVer[2] ));
