@@ -455,16 +455,16 @@ Main_Wing_Area_ErrorPercentage = round((Main_Wing_Area_Actual/100 - Main_Wing_ar
 
 Main_Wing_Area_DoAnalysis = (abs(Main_Wing_Area_ErrorPercentage) > 1);
 
-// TEST: Check OpenSCAD version and feature support
-echo("=== OPENSCAD FEATURE TEST ===");
-echo("OpenSCAD version:", version());
-echo("Preview mode:", $preview);
+// Version check - require OpenSCAD 2025.7+ for object() function support
+echo(str("OpenSCAD version: ", OpenScad_SemVer[0], ".", OpenScad_SemVer[1], ".", OpenScad_SemVer[2] ));
 
-// Check for available features if supported
-if (!is_undef($feature_list)) {
-    echo("Available features:", $feature_list);
-} else {
-    echo("$feature_list not available in this version");
+OpenScad_SemVer = version();
+OpenScad_SemVer_Required = [2025, 7]; // Minimum required version for object() function support
+// Check if OpenSCAD version is compatible
+OpenScad_VersionOk = (OpenScad_SemVer[0] > OpenScad_SemVer_Required[0]) || (OpenScad_SemVer[0] == OpenScad_SemVer_Required[0] && OpenScad_SemVer[1] >= OpenScad_SemVer_Required[1]);
+
+if (!OpenScad_VersionOk) {
+    assert(false, "Incompatible OpenSCAD version - requires 2025.7+ - Please upgrade to OpenSCAD nightly build");
 }
 
 
