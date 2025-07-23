@@ -714,7 +714,15 @@ if ($preview && Preview_BuiltModel) {
 else 
 {
     // Render mode - split into printable parts using wing configuration
-    split_wing_into_parts(main_wing_config.print) main_wing();
+    // 
+    // OPTION 1: Traditional approach (current)
+    // split_wing_into_parts(main_wing_config.print) main_wing();
+    
+    // OPTION 2: New split_print() approach (BOSL2-style tagging)
+    split_print(main_wing_config.print) main_wing();
+    
+    // OPTION 3: Auto-detecting approach (automatically splits only when needed)
+    // auto_split_print(main_wing_config) main_wing();
 }
 
 // CARBON SPAR SYSTEM

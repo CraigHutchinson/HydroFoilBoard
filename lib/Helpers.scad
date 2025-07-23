@@ -38,20 +38,22 @@ function AirfoilHeightAtPosition(path, distance, tolerance = 0.5) =
 //Scales a path to the scale factor
 function scalePath(points, scaleFactor) = [for (p = points)[p[0] * scaleFactor, p[1] * scaleFactor]];        
 
-// Function to split a module into printable parts along the Z axis
-module split_into_parts( total_length, build_area, scale=1.0, bbox=af_bbox, print_height_mm=0) {
-    splits = ceil(total_length / (build_area.z * scale));
-    splits_length = total_length / splits;
-    // If print_height_mm > 0, only print up to that height from the bottom of each part
-    part_height = (print_height_mm > 0 && print_height_mm < splits_length) ? print_height_mm : splits_length;
+// Global variable to track if we're in split print mode
+$split_print_mode = false;
+$split_print_config = undef;
 
-    for (i = [0:splits-1]) {
-        fwd(i * (bbox.w - bbox.z + (build_area.x / splits)))
-        intersection() {
-            down(i * splits_length) children();
-            cube([build_area.x, build_area.y, part_height], anchor=BOTTOM+LEFT);
-        }
-    }
+/**
+ * Split print module - similar to BOSL2's diff() but for print splitting
+ * This creates a context where child modules can be automatically split for printing
+ * Usage: split_print(wing_config.print) main_wing();
+ */
+module split_print(print_config) {
+    // Set global context variables for child modules to access
+    $split_print_mode = (print_config.splits > 1);
+    $split_print_config = print_config;
+    
+    // Apply the splitting to all children
+    split_wing_into_parts(print_config) children();
 }
 
 // Function to split a module into printable parts using wing configuration
