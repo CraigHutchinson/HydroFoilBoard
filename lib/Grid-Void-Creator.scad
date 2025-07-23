@@ -1,3 +1,5 @@
+include <Wing-Creator.scad>
+
 CamberAdjust = 0; //% to increase or decrease the camber for difficult airfoil
 
 module CamberVoidLE(airfoil_slice_path)
@@ -13,8 +15,6 @@ module CamberVoidTE(airfoil_slice_path)
     translate([ 0, slice_ext_width, 0 ]) polygon(points = airfoil_slice_path);
     translate([ 0, -slice_ext_width, 0 ]) polygon(points = airfoil_slice_path);
 }
-
-//function scalePath(points, scaleFactor) = [for (p = points)[p[0] * scaleFactor, p[1] * scaleFactor]];
 
 function max_x(points, idx = 0, max_vals = undef,
                max_x_val = -1e10) = (idx == len(points)) ? max_vals
@@ -95,33 +95,33 @@ module GridESlice(i, scale_factor, LE)
     {
         if (LE)
         {
-            CamberVoidLE(scalePath(af_vec_path_tip, scale_factor));
+            CamberVoidLE(scale([scale_factor, scale_factor], p=af_vec_path_tip));
         }
         else
         {
-            CamberVoidTE(scalePath(af_vec_path_tip, scale_factor));
+            CamberVoidTE(scale([scale_factor, scale_factor], p=af_vec_path_tip));
         }
     }
     else if (i > Main_Wing_Sections * (center_airfoil_change_perc / 100))
     {
         if (LE)
         {
-            CamberVoidLE(scalePath(af_vec_path_mid, scale_factor));
+            CamberVoidLE(scale([scale_factor, scale_factor], p=af_vec_path_mid));
         }
         else
         {
-            CamberVoidTE(scalePath(af_vec_path_mid, scale_factor));
+            CamberVoidTE(scale([scale_factor, scale_factor], p=af_vec_path_mid));
         }
     }
     else
     {
         if (LE)
         {
-            CamberVoidLE(scalePath(af_vec_path_root, scale_factor));
+            CamberVoidLE(scale([scale_factor, scale_factor], p=af_vec_path_root));
         }
         else
         {
-            CamberVoidTE(scalePath(af_vec_path_root, scale_factor));
+            CamberVoidTE(scale([scale_factor, scale_factor], p=af_vec_path_root));
         }
     }
 }
@@ -129,7 +129,7 @@ module GridESlice(i, scale_factor, LE)
 module GridSlice(z_location, i, LE)
 {
     current_chord_mm = (wing_mode == 1) ? ChordLengthAtIndex(i, Main_Wing_Sections)
-                                        : ChordLengthAtEllipsePosition(Main_Wing_mm, Main_Wing_Root_Chord_MM, z_location);
+                                        : ChordLengthElliptical(z_location, Main_Wing_mm, Main_Wing_Root_Chord_MM, Main_Wing_Eliptic_Pow);
 
     scale_factor = current_chord_mm / 100;
     translate([ 0, 0, z_location ]) translate([ -MainWing_Center_Line_Perc / 100 * current_chord_mm, 0, 0 ])
@@ -184,8 +184,8 @@ module CreateGridVoid()
             {
                 for (i = [0:Main_Wing_Sections])
                 {
-                    pos = f(i, Main_Wing_Sections, Main_Wing_mm);
-                    npos = f((i + 1), Main_Wing_Sections, Main_Wing_mm);
+                    pos = QuadraticWingPosition(i, Main_Wing_Sections, Main_Wing_mm);
+                    npos = QuadraticWingPosition((i + 1), Main_Wing_Sections, Main_Wing_mm);
                     hull()
                     {
                         GridSlice(pos, i, true);
@@ -197,8 +197,8 @@ module CreateGridVoid()
             {
                 for (i = [0:Main_Wing_Sections])
                 {
-                    pos = f(i, Main_Wing_Sections, Main_Wing_mm);
-                    npos = f((i + 1), Main_Wing_Sections, Main_Wing_mm);
+                    pos = QuadraticWingPosition(i, Main_Wing_Sections, Main_Wing_mm);
+                    npos = QuadraticWingPosition((i + 1), Main_Wing_Sections, Main_Wing_mm);
                     hull()
                     {
                         GridSlice(pos, i, false);

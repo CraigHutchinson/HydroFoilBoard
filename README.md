@@ -78,8 +78,8 @@ The project consists of several specialized modules working together:
 - **Aileron-Creator.scad** - Control surface generation capabilities
 
 ### Mathematical Foundations
-- **Elliptical Function** - `ChordLengthAtEllipsePosition()` creates smooth chord distribution
-- **Quadratic Curve** - `f(i, numPoints, height)` controls wing thickness distribution
+- **Elliptical Function** - `ChordLengthElliptical()` creates smooth chord distribution
+- **Quadratic Curve** - `QuadraticWingPosition(section_index, total_sections, wing_span_mm)` controls wing thickness distribution
 - **Washout Calculation** - Progressive twist from root to tip
 - **Airfoil Scaling** - Proportional sizing based on local chord length
 - **Grid Spacing** - Calculated based on chord length and density factors

@@ -10,21 +10,26 @@ include <BOSL2/std.scad>
 
 /**
  * Returns the appropriate airfoil path based on wing position
- * @param index - Current slice index along the wing span
- * @param wing_sections - Total number of sections in the wing
+ * @param z_pos - Current Z position along the wing span
+ * @param wing_mm - Wing half-span length
  * @param tip_change_perc - Percentage where tip airfoil starts (default: tip_airfoil_change_perc)
  * @param center_change_perc - Percentage where center airfoil starts (default: center_airfoil_change_perc)
  */
-function GetAirfoilPath(index, wing_sections, tip_change_perc=undef, center_change_perc=undef) = 
+function GetAirfoilPath(z_pos, wing_mm, tip_change_perc=undef, center_change_perc=undef) = 
     let(
         tip_perc = (tip_change_perc != undef) ? tip_change_perc : tip_airfoil_change_perc,
         center_perc = (center_change_perc != undef) ? center_change_perc : center_airfoil_change_perc,
-        tip_airfoil_change_index = wing_sections * (tip_perc / 100),
-        center_airfoil_change_index = wing_sections * (center_perc / 100),
+        
+        // Calculate progress along wing (0 to 1)
+        progress = z_pos / wing_mm,
+        
+        // Convert percentages to progress values
+        tip_progress = tip_perc / 100,
+        center_progress = center_perc / 100,
         
         // Get base airfoil path
-        base_path = (index > tip_airfoil_change_index) ? TipAirfoilPath() :
-                   (index > center_airfoil_change_index) ? MidAirfoilPath() :
+        base_path = (progress > tip_progress) ? TipAirfoilPath() :
+                   (progress > center_progress) ? MidAirfoilPath() :
                    RootAirfoilPath(),
         
         // Simplify path for preview mode using BOSL2 resample_path()
@@ -33,36 +38,8 @@ function GetAirfoilPath(index, wing_sections, tip_change_perc=undef, center_chan
     simplified_path;
 
 /**
- * Calculate the chord length at a specific wing position using index (wing_mode == 1)
- * @param index - Current slice index along the wing span
- * @param wing_sections - Total number of sections in the wing
- * @param root_chord_mm - Root chord length in mm
- * @param tip_chord_mm - Tip chord length in mm
- * @return current_chord_mm - Chord length in millimeters at this position
- */
-function WingSliceChordLengthByIndex(index, wing_sections, root_chord_mm, tip_chord_mm) = 
-    let(
-        tip_to_root_ratio = tip_chord_mm / root_chord_mm,
-        progress = index / wing_sections,
-        current_chord_mm = root_chord_mm * (1 - progress * (1 - tip_to_root_ratio))
-    ) current_chord_mm;
-
-/**
- * Calculate the chord length at a specific wing position using z_location (wing_mode > 1)
- * @param z_location - Z position of this slice along the wing
- * @param wing_mm - Wing half-span length
- * @param root_chord_mm - Root chord length in mm
- * @param elliptic_pow - Elliptic distribution power factor
- * @return current_chord_mm - Chord length in millimeters at this position
- */
-function WingSliceChordLengthByPosition(z_location, wing_mm, root_chord_mm, elliptic_pow) = 
-    ChordLengthAtEllipsePosition(wing_mm, root_chord_mm, z_location, elliptic_pow);
-
-/**
  * Calculate the chord length at a specific wing position (unified interface)
- * @param index - Current slice index along the wing span
  * @param z_location - Z position of this slice along the wing
- * @param wing_sections - Total number of sections in the wing
  * @param wing_mode - Wing shape mode (1=trapezoidal, 2=elliptic)
  * @param wing_mm - Wing half-span length
  * @param root_chord_mm - Root chord length in mm
@@ -70,55 +47,14 @@ function WingSliceChordLengthByPosition(z_location, wing_mm, root_chord_mm, elli
  * @param elliptic_pow - Elliptic distribution power factor (for elliptic)
  * @return current_chord_mm - Chord length in millimeters at this position
  */
-function WingSliceChordLength(index, z_location, wing_sections, wing_mode, wing_mm, root_chord_mm, tip_chord_mm=50, elliptic_pow=1.5) = 
+function WingSliceChordLength(z_location, wing_mode, wing_mm, root_chord_mm, tip_chord_mm=50, elliptic_pow=1.5) = 
     (wing_mode == 1) 
-        ? WingSliceChordLengthByIndex(index, wing_sections, root_chord_mm, tip_chord_mm)
-        : WingSliceChordLengthByPosition(z_location, wing_mm, root_chord_mm, elliptic_pow);
-
-/**
- * Calculate the scale factor for a wing slice using index (wing_mode == 1)
- * @param index - Current slice index along the wing span
- * @param wing_sections - Total number of sections in the wing
- * @param root_chord_mm - Root chord length in mm
- * @param tip_chord_mm - Tip chord length in mm
- * @return scale_factor - Scaling factor relative to 100mm base chord
- */
-function WingSliceScaleFactorByIndex(index, wing_sections, root_chord_mm, tip_chord_mm) = 
-    WingSliceChordLengthByIndex(index, wing_sections, root_chord_mm, tip_chord_mm) / 100;
-
-/**
- * Calculate the scale factor for a wing slice using z_location (wing_mode > 1)
- * @param z_location - Z position of this slice along the wing
- * @param wing_mm - Wing half-span length
- * @param root_chord_mm - Root chord length in mm
- * @param elliptic_pow - Elliptic distribution power factor
- * @return scale_factor - Scaling factor relative to 100mm base chord
- */
-function WingSliceScaleFactorByPosition(z_location, wing_mm, root_chord_mm, elliptic_pow) = 
-    WingSliceChordLengthByPosition(z_location, wing_mm, root_chord_mm, elliptic_pow) / 100;
-
-/**
- * Calculate the scale factor for a wing slice (unified interface)
- * @param index - Current slice index along the wing span
- * @param z_location - Z position of this slice along the wing
- * @param wing_sections - Total number of sections in the wing
- * @param wing_mode - Wing shape mode (1=trapezoidal, 2=elliptic)
- * @param wing_mm - Wing half-span length
- * @param root_chord_mm - Root chord length in mm
- * @param tip_chord_mm - Tip chord length in mm (for trapezoidal)
- * @param elliptic_pow - Elliptic distribution power factor (for elliptic)
- * @return scale_factor - Scaling factor relative to 100mm base chord
- */
-function WingSliceScaleFactor(index, z_location, wing_sections, wing_mode, wing_mm, root_chord_mm, tip_chord_mm=50, elliptic_pow=1.5) = 
-    (wing_mode == 1) 
-        ? WingSliceScaleFactorByIndex(index, wing_sections, root_chord_mm, tip_chord_mm)
-        : WingSliceScaleFactorByPosition(z_location, wing_mm, root_chord_mm, elliptic_pow);
+        ? ChordLengthTrapezoidal(z_location, root_chord_mm, tip_chord_mm)
+        : ChordLengthElliptical(z_location, wing_mm, root_chord_mm, elliptic_pow);
 
 /**
  * Returns a scaled and positioned airfoil path for a wing slice
- * @param index - Current slice index along the wing span
  * @param z_location - Z position of this slice along the wing
- * @param wing_sections - Total number of sections in the wing
  * @param wing_mode - Wing shape mode (1=trapezoidal, 2=elliptic)
  * @param wing_mm - Wing half-span length
  * @param root_chord_mm - Root chord length in mm
@@ -131,64 +67,54 @@ function WingSliceScaleFactor(index, z_location, wing_sections, wing_mode, wing_
  * @param tip_change_perc - Percentage where tip airfoil starts
  * @param center_change_perc - Percentage where center airfoil starts
  */
-function WingSlicePath(index, z_location, wing_sections, wing_mode, wing_mm, root_chord_mm, tip_chord_mm=50, elliptic_pow=1.5, center_line_perc=90, washout_deg=0, washout_start=60, washout_pivot_perc=25, tip_change_perc=100, center_change_perc=100) = 
+function WingSlicePath(z_location, wing_mode, wing_mm, root_chord_mm, tip_chord_mm=50, elliptic_pow=1.5, center_line_perc=90, washout_deg=0, washout_start=60, washout_pivot_perc=25, tip_change_perc=100, center_change_perc=100) = 
     let(
         // Calculate scale factor and chord length using helper functions
-        scale_factor = WingSliceScaleFactor(index, z_location, wing_sections, wing_mode, wing_mm, root_chord_mm, tip_chord_mm, elliptic_pow),
-        current_chord_mm = WingSliceChordLength(index, z_location, wing_sections, wing_mode, wing_mm, root_chord_mm, tip_chord_mm, elliptic_pow),
+        current_chord_mm = WingSliceChordLength(z_location, wing_mode, wing_mm, root_chord_mm, tip_chord_mm, elliptic_pow),
+        scale_factor = current_chord_mm / 100,
         
         // Get the base airfoil path
-        base_path = GetAirfoilPath(index, wing_sections, tip_change_perc, center_change_perc),
+        base_path = GetAirfoilPath(z_location, wing_mm, tip_change_perc, center_change_perc),
         
         // Apply scaling and translation using BOSL2 transforms
         scaled_path = move([-center_line_perc / 100 * current_chord_mm, 0], 
                           p=scale([scale_factor, scale_factor], p=base_path)),
         
         // Apply washout rotation if needed
-        final_path = (washout_deg > 0 && 
-            ((wing_mode > 1 && index > WashoutStart(0, wing_sections, washout_start, wing_mm)) ||
-             (wing_mode == 1 && index > (wing_sections * (washout_start / 100))))) ?
-            ApplyWashoutToPath(scaled_path, index, current_chord_mm, wing_sections, wing_mode, washout_deg, washout_start, washout_pivot_perc, wing_mm) :
+        final_path = (washout_deg > 0 && z_location > washout_start) ?
+            ApplyWashoutToPath(scaled_path, z_location, current_chord_mm, wing_mode, washout_deg, washout_start, washout_pivot_perc, wing_mm) :
             scaled_path
     ) final_path;
 
 /**
  * Applies washout rotation to an airfoil path
  * @param path - The 2D airfoil path to rotate
- * @param index - Current slice index
+ * @param z_location - Current Z position along the wing
  * @param current_chord_mm - Chord length at this position
- * @param wing_sections - Total number of sections
  * @param wing_mode - Wing shape mode (1=trapezoidal, 2=elliptic)
  * @param washout_deg - Degrees of washout (0 = none)
  * @param washout_start - Where washout starts (mm from root)
  * @param washout_pivot_perc - Washout pivot point (percentage from LE)
  * @param wing_mm - Wing half-span length
  */
-function ApplyWashoutToPath(path, index, current_chord_mm, wing_sections, wing_mode, washout_deg, washout_start, washout_pivot_perc, wing_mm) =
+function ApplyWashoutToPath(path, z_location, current_chord_mm, wing_mode, washout_deg, washout_start, washout_pivot_perc, wing_mm) =
     let(
-        // Calculate washout parameters
-        washout_start_point = (wing_mode == 1) 
-            ? (wing_sections * (washout_start / 100))
-            : WashoutStart(0, wing_sections, washout_start, wing_mm),
+        // Calculate washout parameters based on z position
+        washout_span = wing_mm - washout_start,
         
-        washout_deg_frac = washout_deg / (wing_sections - washout_start_point),
-        washout_deg_amount = (washout_start_point - index) * washout_deg_frac,
+        // Ensure we have a valid span and clamp progress to [0,1]
+        washout_progress = (washout_span > 0) ? 
+            max(0, min(1, (z_location - washout_start) / washout_span)) : 0,
+        
+        // Linear washout progression from start to tip
+        // Negative for typical washout (nose down twist at tip)
+        washout_deg_amount = -washout_progress * washout_deg,
         rotate_point = current_chord_mm * (washout_pivot_perc / 100),
         
         // Apply 2D rotation around the pivot point using BOSL2
         rotated_path = zrot(washout_deg_amount, p=path, cp=[rotate_point, 0])
     ) rotated_path;
 
-/**
- * Helper function for washout start calculation
- * @param min_val - Minimum value
- * @param wing_sections - Total number of sections
- * @param washout_start - Where washout starts (mm from root)
- * @param wing_mm - Wing half-span length
- */
-function WashoutStart(min_val, wing_sections, washout_start, wing_mm) =
-    max(min_val, wing_sections * (washout_start / wing_mm));
-    
 /**
  * Calculate both anhedral angle and y-offset at a given wing position (simplified linear curve)
  * @param z_pos - Current position along the wing span (0 to wing_mm)
@@ -249,20 +175,49 @@ function AnhedralAtPosition(z_pos, wing_mm, anhedral_degrees, start_percentage) 
  */
 module CreateWing(wing_config) {
     wing_section_mm = wing_config.wing_mm / wing_config.sections;
+
+    bounds = get_current_split_bounds(wing_config.wing_mm);
+    start_z = max(bounds[0], 0);
+    end_z = min(bounds[1], wing_config.wing_mm);
+            
+    // Create a list of z positions that includes:
+    // 1. Normal wing sections within the split bounds
+    // 2. Exact split boundary positions (start_z and end_z)
+    z_positions = [
+                // Start boundary (if not at z=0)
+                start_z,
+                
+                // Normal sections within bounds
+                for (i = [0:wing_config.sections]) let(
+                    z_pos = (wing_config.wing_mode == 1) ? 
+                        wing_section_mm * i : 
+                        QuadraticWingPosition(i, wing_config.sections, wing_config.wing_mm)
+                ) if (z_pos > start_z && z_pos < end_z) z_pos,
+                
+                // End boundary (if not at tip)
+                end_z
+            ];
+    
+    // Debug output for split awareness
+    if (is_split_mode()) {
+        echo(str("CreateWing split-aware: generating ", len(z_positions), " sections for split ", 
+                 $split_current_index, " z_bounds=[", $split_z_start, ",", $split_z_end, "]"));
+        echo(str("Z positions: ", z_positions));
+    }
     
     translate([wing_config.root_chord_mm * (wing_config.center_line_perc / 100), 0, 0]) {
-        // Create wing profiles for each section
+        // Create wing profiles for the calculated z positions
         profiles = [
-            for (i = [0:wing_config.sections]) let(
-                z_pos = (wing_config.wing_mode == 1) ? wing_section_mm * i : f(i, wing_config.sections, wing_config.wing_mm),
+            for (j = [0:len(z_positions)-1]) let(
+                z_pos = z_positions[j],
                 
                 // Calculate anhedral parameters for this position
                 anhedral_data = AnhedralAtPosition(z_pos, wing_config.wing_mm, wing_config.anhedral.degrees, wing_config.anhedral.start_perc),
                 anhedral_angle = anhedral_data[0],
                 anhedral_y_offset = anhedral_data[1],
                 
-                // Get the base wing slice path
-                base_path = WingSlicePath(i, z_pos, wing_config.sections, wing_config.wing_mode, wing_config.wing_mm, wing_config.root_chord_mm, wing_config.tip_chord_mm, wing_config.elliptic_pow, wing_config.center_line_perc, wing_config.washout.degrees, wing_config.washout.start, wing_config.washout.pivot_perc, wing_config.airfoil.tip_change_perc, wing_config.airfoil.center_change_perc),
+                // Get the base wing slice path (now purely z_position based)
+                base_path = WingSlicePath(z_pos, wing_config.wing_mode, wing_config.wing_mm, wing_config.root_chord_mm, wing_config.tip_chord_mm, wing_config.elliptic_pow, wing_config.center_line_perc, wing_config.washout.degrees, wing_config.washout.start, wing_config.washout.pivot_perc, wing_config.airfoil.tip_change_perc, wing_config.airfoil.center_change_perc),
                 
                 // Create 3D path first
                 path_3d = path3d(base_path, z_pos),
@@ -278,49 +233,11 @@ module CreateWing(wing_config) {
         ];
         
         // Create the wing surface using BOSL2 skin() function
-        skin(profiles, slices=0, refine=1, method="direct", sampling="segment");
+        if (len(profiles) >= 2) {
+            skin(profiles, slices=0, refine=1, method="direct", sampling="segment");
+        } else if (len(profiles) == 1) {
+            echo("Warning: Only one profile generated, creating minimal surface");
+            skin([profiles[0], profiles[0]], slices=0, refine=1, method="direct", sampling="segment");
+        }
     }
-}
-
-/**
- * Legacy CreateWing function for backward compatibility
- * Wraps the new object-based function with individual parameters
- * @deprecated Use CreateWing(wing_config) instead
- */
-module CreateWingLegacy(
-    wing_sections = 100,
-    wing_mm = 575,
-    root_chord_mm = 149,
-    tip_chord_mm = 50,
-    wing_mode = 2,
-    elliptic_pow = 1.5,
-    center_line_perc = 90,
-    washout_deg = 1.5,
-    washout_start = 60,
-    washout_pivot_perc = 25,
-    anhedral_degrees = 0.5,
-    anhedral_start_perc = 50,
-    tip_change_perc = 100,
-    center_change_perc = 100
-) {
-    // Create a temporary wing config object from the parameters
-    legacy_wing_config = object(
-        sections = wing_sections,
-        wing_mm = wing_mm,
-        root_chord_mm = root_chord_mm,
-        tip_chord_mm = tip_chord_mm,
-        wing_mode = wing_mode,
-        elliptic_pow = elliptic_pow,
-        center_line_perc = center_line_perc,
-        washout_deg = washout_deg,
-        washout_start = washout_start,
-        washout_pivot_perc = washout_pivot_perc,
-        anhedral_degrees = anhedral_degrees,
-        anhedral_start_perc = anhedral_start_perc,
-        tip_change_perc = tip_change_perc,
-        center_change_perc = center_change_perc
-    );
-    
-    // Call the new object-based function
-    CreateWing(legacy_wing_config);
 }

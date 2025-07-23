@@ -73,11 +73,11 @@ Main_Wing_area = 1713;               // Main wing area in cm²
 Main_Wing_Average_Chord = Main_Wing_span / Main_Wing_aspectratio; // PNG 1150 has 149mm avg chord (1150/7.72)
 
 // Power of the elliptic wing (2 = perfect ellipse)
-Main_Wing_Eliptic_Pow = 1.4; // [1.0:0.05:3.0] // Changed from 1.75 to 2.0 for true ellipse
+Main_Wing_Eliptic_Pow = 2.0; // [1.0:0.05:3.0] // Changed from 1.75 to 2.0 for true ellipse
 
 // NOTE: AXIS PNG 1150 Area Calculation - Theoretical Scale Factor Calculation
 // The PNG 1150 has 1713 cm² area with 1150mm span and 7.72 aspect ratio
-// The ChordLengthAtEllipsePosition() function uses: chord = 2 * sqrt((b/2)² * (1 - (x²/a²)^power))
+// The ChordLengthElliptical() function uses: chord = root_chord * pow(1 - pow(normalized_pos, pow_factor), 1/pow_factor)
 // The relationship between average chord and root chord depends on the elliptic power factor
 // For an elliptic wing with power p, the theoretical scale factor can be calculated
 Main_Wing_Root_Chord_Scale_Factor = calculate_elliptic_scale_factor(Main_Wing_Eliptic_Pow);
@@ -99,14 +99,14 @@ MainWing_Center_Line_Perc = 90; // [0:100]
 // Wing anhedral settings (degrees)
 // Anhedral creates a downward angle of the wing tips for improved stability
 // This defines the angle of the anhedral at the tip of the wing (degrees)
-Wing_Anhedral_Degrees = 0.5; // [0:0.2:10]
+Wing_Anhedral_Degrees = 0.75; // [0:0.2:10]
 // Where anhedral starts (percentage from root)
 // This defines where the anhedral starts along the span - wing sections are rotated around x-axis and offset in y
 Wing_Anhedral_Start_At_Percentage = 50; // [0:100]
 
 // Main Wing Washout Settings
 // Degrees of washout (0 = none) - washout adds twist for stability
-Main_Wing_Washout_Deg = 1.5; // [0:0.1:10]
+Main_Wing_Washout_Deg = 1.0; // [0:0.1:10]
 // Where washout starts (mm from root)
 Main_Wing_Washout_Start = 60 * Build_Scale; // [0:10:500]
 // Washout pivot point (percentage from LE)
@@ -179,7 +179,7 @@ Rear_Wing_tip_chord_mm = 25 * Build_Scale; // [5:2:100]
 Rear_Wing_mode = 2; // [1:"Trapezoidal Wing", 2:"Elliptic Wing"]
 
 // Power of the elliptic rear wing (2 = perfect ellipse)
-Rear_Wing_eliptic_pow = 1.0; // [1.0:0.1:3.0]
+Rear_Wing_eliptic_pow = 2.0; // [1.0:0.1:3.0]
 // Percentage from leading edge for rear wing center line
 Rear_MainWing_Center_Line_Perc = 95; // [0:100]
 
@@ -714,15 +714,7 @@ if ($preview && Preview_BuiltModel) {
 else 
 {
     // Render mode - split into printable parts using wing configuration
-    // 
-    // OPTION 1: Traditional approach (current)
-    // split_wing_into_parts(main_wing_config.print) main_wing();
-    
-    // OPTION 2: New split_print() approach (BOSL2-style tagging)
     split_print(main_wing_config.print) main_wing();
-    
-    // OPTION 3: Auto-detecting approach (automatically splits only when needed)
-    // auto_split_print(main_wing_config) main_wing();
 }
 
 // CARBON SPAR SYSTEM
@@ -748,15 +740,15 @@ function calculate_spar_offset_at_chord_position(perc, line="MID", position_mm =
         
         // Get the y-coordinate at that position
         y_offset = af_vec[closest_index][1]
-    ) y_offset * MainWingSliceScaleFactorByPosition(position_mm); // Scale the offset based on the current wing slice scale factor
+    ) y_offset * MainWingSliceScaleFactorEliptical(position_mm); // Scale the offset based on the current wing slice scale factor
 
 // Function to calculate wing slice scale factor based on position
-function MainWingSliceScaleFactorByPosition(position_mm) = 
+function MainWingSliceScaleFactorEliptical(position_mm) = 
     let(
         // Calculate chord at this position using elliptic distribution
         current_chord = (Main_Wing_Mode == 1) 
-            ? ChordLengthAtPosition(position_mm)
-            : ChordLengthAtEllipsePosition(Main_Wing_mm, Main_Wing_Root_Chord_MM, position_mm),
+            ? ChordLengthTrapezoidal(position_mm)
+            : ChordLengthElliptical(position_mm, Main_Wing_mm, Main_Wing_Root_Chord_MM, Main_Wing_Eliptic_Pow),
         
         // Scale factor normalized to 100mm base chord
         scale_factor = current_chord / 100
@@ -809,33 +801,8 @@ function calculate_actual_wing_area() =
 // Function to get chord length at a specific wing position
 function get_chord_at_position(position_mm) = 
     (Main_Wing_Mode == 1) 
-        ? ChordLengthAtPosition(position_mm)
-        : ChordLengthAtEllipsePosition(Main_Wing_mm, Main_Wing_Root_Chord_MM, position_mm);
+        ? ChordLengthTrapezoidal(position_mm)
+        : ChordLengthElliptical(position_mm, Main_Wing_mm, Main_Wing_Root_Chord_MM, Main_Wing_Eliptic_Pow);
 
-// Function to calculate the theoretical scale factor for elliptic wings
-// This relates the average chord to root chord based on the elliptic power factor
-function calculate_elliptic_scale_factor(elliptic_power) = 
-    let(
-        // For an elliptic wing: chord(x) = 2 * sqrt((b/2)² * (1 - (x²/a²)^p))
-        // where b is root chord, a is half-span, p is elliptic power
-        // 
-        // The average chord can be calculated as:
-        // c_avg = (1/a) * ∫[0 to a] chord(x) dx
-        // 
-        // For the scale factor: c_root = c_avg * scale_factor
-        // 
-        // Mathematical analysis shows:
-        // - p = 1.0: circular arc, c_avg/c_root = π/4, so scale_factor = 4/π ≈ 1.2732
-        // - p = 1.5: empirically validated as 1.18853 for AXIS PNG 1150
-        // - p = 2.0: true ellipse, c_avg/c_root = π/4, so scale_factor = 4/π ≈ 1.2732
-        // 
-        // The function has a minimum around p=1.5 due to the compression effect
-        
-        scale_factor = 
-            (elliptic_power <= 1.0) ? 4/PI :  // 4/π for circular arc
-            (elliptic_power <= 1.5) ? 4/PI  - (elliptic_power - 1.0) * 0.16934 :  // Exact to 1.18853 at p=1.5
-            (elliptic_power <= 2.0) ? 1.18853 + (elliptic_power - 1.5) * 0.16934 : // Symmetric return to 4/π
-            4/PI  // 4/π for higher powers (true ellipse and beyond)
-    ) scale_factor;
 
 
