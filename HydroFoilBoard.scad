@@ -499,7 +499,7 @@ if (Main_Wing_Sections * 0.2 < slice_transisions) {
 }
 
 // Calculate actual wing area from the model geometry
-Main_Wing_Area_Actual = calculate_actual_wing_area();
+Main_Wing_Area_Actual = calculate_actual_wing_area(main_wing_config);
 Main_Wing_Area_ErrorPercentage = round((Main_Wing_Area_Actual/100 - Main_Wing_area)/Main_Wing_area * 100);
 
 Main_Wing_Area_DoAnalysis = (abs(Main_Wing_Area_ErrorPercentage) > 2.5);
@@ -583,8 +583,8 @@ echo("========================================");
 
 if ( Main_Wing_Area_DoAnalysis )
 {
-    visualize_actual_wing_area();
-    fwd(15) visualize_wing_area_calculation();
+    visualize_actual_wing_area(main_wing_config);
+    fwd(15) visualize_wing_area_calculation(main_wing_config);
 }
 else // Main execution
 if(Build_CalibrationParts) {
@@ -757,52 +757,49 @@ function MainWingSliceScaleFactorEliptical(position_mm) =
 
 //Calculate the 2d projection of the wing which defines its area
 // Note: Use this module to render and measure the wing area
-module visualize_actual_wing_area() {
-    xrot(-90) projection() xrot(90) CreateMainWing();
+module visualize_actual_wing_area(wing_config) {
+    xrot(-90) projection() xrot(90) CreateWing(wing_config);
 }
 
-// Minimum trailing edge thickness for 3D printi
-module visualize_wing_area_calculation() {
+// Minimum trailing edge thickness for 3D printing
+module visualize_wing_area_calculation(wing_config) {
     steps = 100; // Fewer steps for visualization
-    step_size = Main_Wing_mm / steps;
+    step_size = wing_config.wing_mm / steps;
     
     // Apply the same translation as CreateWing uses
-    translate([Main_Wing_Root_Chord_MM * (MainWing_Center_Line_Perc / 100), 0, 0]) {
+    translate([wing_config.root_chord_mm * wing_config.center_line_nx, 0, 0]) {
         for (i = [0:steps-1]) {
             position = i * step_size;
-            chord = get_chord_at_position(position);
+            chord = WingSliceChordLength(position / wing_config.wing_mm, wing_config.wing_mode, wing_config.root_chord_mm, wing_config.tip_chord_mm, wing_config.elliptic_pow);
             
             color([1, 0.5, 0, 0.3]) // Semi-transparent orange
-            translate([-MainWing_Center_Line_Perc / 100 * chord, 0, position])
+            translate([-wing_config.center_line_nx * chord, 0, position])
                 cube([chord, 0.5, step_size], anchor=BOTTOM+LEFT);
         }
     }
 }
 
 // Function to calculate actual wing area by numerical integration
-function calculate_actual_wing_area() = 
+// Takes a wing configuration object to work with any wing (main or stabilizer)
+function calculate_actual_wing_area(wing_config) = 
     let(
         // Number of integration steps (higher = more accurate)
         steps = 250,
-        step_size = Main_Wing_mm / steps,
+        step_size = wing_config.wing_mm / steps,
         
         // Calculate area by summing chord lengths at each position
         area_values = [for (i = [0:steps-1])
             let(
                 position = i * step_size,
-                chord_at_position = get_chord_at_position(position + (step_size/2)) // Midpoint for better accuracy
+                // Use midpoint for better accuracy and existing WingSliceChordLength function
+                nz = (position + step_size/2) / wing_config.wing_mm,
+                chord_at_position = WingSliceChordLength(nz, wing_config.wing_mode, wing_config.root_chord_mm, wing_config.tip_chord_mm, wing_config.elliptic_pow)
             ) chord_at_position * step_size
         ],
         
-        // Sum all area elements (try BOSL2's sum first, fallback to custom)
+        // Sum all area elements
         area_sum = sum(area_values)
     ) area_sum * 2; // Multiply by 2 for full wing (both halves)
-
-// Function to get chord length at a specific wing position
-function get_chord_at_position(position_mm) = 
-    (Main_Wing_Mode == 1) 
-        ? ChordLengthTrapezoidal(position_mm / Main_Wing_mm, Main_Wing_Root_Chord_MM, Main_Wing_Tip_Chord_MM)
-        : ChordLengthElliptical(position_mm / Main_Wing_mm, Main_Wing_Root_Chord_MM, Main_Wing_Eliptic_Pow);
 
 
 

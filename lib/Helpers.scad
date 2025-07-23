@@ -1,7 +1,3 @@
-// Function to calculate the rib cord length
-function ChordLengthAtIndex(index,
-                            loc_wing_sections) = Main_Wing_Root_Chord_MM -
-                                                 ((Main_Wing_Root_Chord_MM - Main_Wing_Tip_Chord_MM) / loc_wing_sections) * index;
 
 // EaseInOut cubic function from t in [0,1] to eased progress [0,1]
 function easeInOutCubic(t) = 
