@@ -23,7 +23,6 @@ Render_Mode_Facet_Angle = 1.0; // [0.1:0.1:10]
 // Minimum facet size for rendering (NOTE: coarse value is udef for preview mode)
 Render_Mode_Facet_Size = 0.2; // [0.01:0.01:1.0]
 
-
 $fa = $preview ? 10 : Render_Mode_Facet_Angle;            // 360deg/5($fa) = 60 facets (affects performance and object smoothness)
 $fs = $preview ? 1 : Render_Mode_Facet_Size;       // Min facet size (lower for final render)
 
@@ -105,6 +104,53 @@ Wing_Anhedral_Degrees = 0.5; // [0:0.2:10]
 // This defines where the anhedral starts along the span - wing sections are rotated around x-axis and offset in y
 Wing_Anhedral_Start_At_Percentage = 50; // [0:100]
 
+// Main Wing Washout Settings
+// Degrees of washout (0 = none) - washout adds twist for stability
+Main_Wing_Washout_Deg = 1.5; // [0:0.1:10]
+// Where washout starts (mm from root)
+Main_Wing_Washout_Start = 60 * Build_Scale; // [0:10:500]
+// Washout pivot point (percentage from LE)
+Main_Wing_Washout_Pivot_Perc = 25; // [0:100]
+
+/* [Airfoil Settings] */
+// Where to change to center airfoil (100 = off)
+center_airfoil_change_perc = 100; // [0:100]
+// Where to change to tip airfoil (100 = off)
+tip_airfoil_change_perc = 100; // [0:100]
+// Number of slices for airfoil blending (0 = off)
+slice_transisions = 0; // [0:1:20]
+
+// Main Wing Configuration Object - Hierarchical Structure
+main_wing_config = object(
+    // Basic geometry
+    sections = Main_Wing_Sections,
+    wing_mm = Main_Wing_mm,
+    root_chord_mm = Main_Wing_Root_Chord_MM,
+    tip_chord_mm = Main_Wing_Tip_Chord_MM,
+    wing_mode = Main_Wing_Mode,
+    elliptic_pow = Main_Wing_Eliptic_Pow,
+    center_line_perc = MainWing_Center_Line_Perc,
+    
+    // Anhedral configuration
+    anhedral = object(
+        degrees = Wing_Anhedral_Degrees,
+        start_perc = Wing_Anhedral_Start_At_Percentage
+    ),
+    
+    // Washout configuration
+    washout = object(
+        degrees = Main_Wing_Washout_Deg,
+        start = Main_Wing_Washout_Start,
+        pivot_perc = Main_Wing_Washout_Pivot_Perc
+    ),
+    
+    // Airfoil transition configuration
+    airfoil = object(
+        tip_change_perc = tip_airfoil_change_perc,
+        center_change_perc = center_airfoil_change_perc
+    )
+);
+
 /* [Rear Stabilizer Wing Geometry Settings] */
 // Based on typical hydrofoil proportions (20-25% of main wing area)
 Rear_Wing_Span = 340;                // Rear stabilizer span in mm (typical 25-30% of main span)
@@ -134,6 +180,45 @@ Rear_Wing_Anhedral_Degrees = 5.0; // [0:0.2:5]
 // Where rear wing anhedral starts (percentage from root)
 Rear_Wing_Anhedral_Start_At_Percentage = 60; // [0:100]
 
+// Rear Wing Washout Settings
+// Rear wing degrees of washout (0 = none) - washout adds twist for stability
+Rear_Wing_Washout_Deg = 0.5; // [0:0.1:5]
+// Where rear wing washout starts (mm from root)
+Rear_Wing_Washout_Start = 30 * Build_Scale; // [0:5:200]
+// Rear wing washout pivot point (percentage from LE)
+Rear_Wing_Washout_Pivot_Perc = 25; // [0:100]
+
+// Rear Wing Configuration Object - Hierarchical Structure
+rear_wing_config = object(
+    // Basic geometry
+    sections = Rear_Wing_sections,
+    wing_mm = Rear_Wing_mm,
+    root_chord_mm = Rear_Wing_root_chord_mm,
+    tip_chord_mm = Rear_Wing_tip_chord_mm,
+    wing_mode = Rear_Wing_mode,
+    elliptic_pow = Rear_Wing_eliptic_pow,
+    center_line_perc = Rear_MainWing_Center_Line_Perc,
+    
+    // Anhedral configuration
+    anhedral = object(
+        degrees = Rear_Wing_Anhedral_Degrees,
+        start_perc = Rear_Wing_Anhedral_Start_At_Percentage
+    ),
+    
+    // Washout configuration
+    washout = object(
+        degrees = Rear_Wing_Washout_Deg,
+        start = Rear_Wing_Washout_Start,
+        pivot_perc = Rear_Wing_Washout_Pivot_Perc
+    ),
+    
+    // Airfoil transition configuration
+    airfoil = object(
+        tip_change_perc = tip_airfoil_change_perc,
+        center_change_perc = center_airfoil_change_perc
+    )
+);
+
 /* [ Wing Position Settings] */
 
 // Rear wing positioning on fuselage
@@ -159,30 +244,6 @@ mast_connection_diameter = 19;   // Mast connection diameter in mm (AXIS 19mm st
 mast_connection_length = 100;    // Mast connection length in mm
 spar_through_fuselage = true;    // Wing spars pass through fuselage (no separate bolts)
 stabilizer_connection_spacing = 50; // Distance between stabilizer mounting bolts in mm
-
-/* [Airfoil Settings] */
-// Where to change to center airfoil (100 = off)
-center_airfoil_change_perc = 100; // [0:100]
-// Where to change to tip airfoil (100 = off)
-tip_airfoil_change_perc = 100; // [0:100]
-// Number of slices for airfoil blending (0 = off)
-slice_transisions = 0; // [0:1:20]
-
-/* [Wing Washout Settings] */
-// Degrees of washout (0 = none)
-washout_deg = 1.5; // [0:0.1:10]
-// Where washout starts (mm from root)
-washout_start = 60 * Build_Scale; // [0:10:500]
-// Washout pivot point (percentage from LE)
-washout_pivot_perc = 25; // [0:100]
-
-/* [Rear Wing Washout Settings] */
-// Rear wing degrees of washout (0 = none)
-rear_washout_deg = 0.5; // [0:0.1:5]
-// Where rear wing washout starts (mm from root)
-rear_washout_start = 30 * Build_Scale; // [0:5:200]
-// Rear wing washout pivot point (percentage from LE)
-rear_washout_pivot_perc = 25; // [0:100]
 
 /* [Internal Grid Structure Settings] */
 // Add inner grid for 3D printing (!Print_For_VaseMode)
@@ -338,65 +399,35 @@ include <lib/Spar-Hole.scad>
 include <lib/Wing-Creator.scad>
 
 /**
- * Main wing creation module (backward compatibility)
- * Uses global variables for wing parameters
+ * Main wing creation module using object configuration
+ * Uses wing configuration object for cleaner parameter passing
  */
 module CreateMainWing() {
-    CreateWing(
-        wing_sections = Main_Wing_Sections,
-        wing_mm = Main_Wing_mm,
-        root_chord_mm = Main_Wing_Root_Chord_MM,
-        tip_chord_mm = Main_Wing_Tip_Chord_MM,
-        wing_mode = Main_Wing_Mode,
-        elliptic_pow = Main_Wing_Eliptic_Pow,
-        center_line_perc = MainWing_Center_Line_Perc,
-        washout_deg = washout_deg,
-        washout_start = washout_start,
-        washout_pivot_perc = washout_pivot_perc,
-        anhedral_degrees = Wing_Anhedral_Degrees,
-        anhedral_start_perc = Wing_Anhedral_Start_At_Percentage,
-        tip_change_perc = tip_airfoil_change_perc,
-        center_change_perc = center_airfoil_change_perc
-    );
+    CreateWing(main_wing_config);
 }
 
 /**
- * Rear wing creation module
- * Uses global variables for rear wing parameters
+ * Rear wing creation module using object configuration
+ * Uses wing configuration object for cleaner parameter passing
  */
 module CreateRearWing() {
-    CreateWing(
-        wing_sections = Rear_Wing_sections,
-        wing_mm = Rear_Wing_mm,
-        root_chord_mm = Rear_Wing_root_chord_mm,
-        tip_chord_mm = Rear_Wing_tip_chord_mm,
-        wing_mode = Rear_Wing_mode,
-        elliptic_pow = Rear_Wing_eliptic_pow,
-        center_line_perc = Rear_MainWing_Center_Line_Perc,
-        washout_deg = rear_washout_deg,
-        washout_start = rear_washout_start,
-        washout_pivot_perc = rear_washout_pivot_perc,
-        anhedral_degrees = Rear_Wing_Anhedral_Degrees,
-        anhedral_start_perc = Rear_Wing_Anhedral_Start_At_Percentage,
-        tip_change_perc = tip_airfoil_change_perc,
-        center_change_perc = center_airfoil_change_perc
-    );
+    CreateWing(rear_wing_config);
 }
 
 // MAIN WING MODULE
 module main_wing() {
     difference() {
         difference() {
-            CreateMainWing();
+            CreateWing(main_wing_config);
 
             if (add_inner_grid) {
                 union() {
                     difference() {
                         difference() {
                             if (grid_mode == 1) {
-                                StructureGrid(Main_Wing_mm, Main_Wing_Root_Chord_MM, grid_size_factor);
+                                StructureGrid(main_wing_config.wing_mm, main_wing_config.root_chord_mm, grid_size_factor);
                             } else {
-                                StructureSparGrid(Main_Wing_mm, Main_Wing_Root_Chord_MM, grid_size_factor, spar_num, spar_offset,
+                                StructureSparGrid(main_wing_config.wing_mm, main_wing_config.root_chord_mm, grid_size_factor, spar_num, spar_offset,
                                                   rib_num, rib_offset);
                             }
                             union() {
@@ -435,7 +466,7 @@ module Rear_Wing() {
    translate([Rear_Wing_position_from_main,0, 0]) {
         translate([0, Rear_Wing_vertical_offset, 0]) {
             rotate([Rear_Wing_angle_offset, 0, 0]) {
-                 xrot(180) CreateRearWing();
+                 xrot(180) CreateWing(rear_wing_config);
             }
         }
     }
@@ -466,6 +497,12 @@ OpenScad_VersionOk = (OpenScad_SemVer[0] > OpenScad_SemVer_Required[0]) || (Open
 if (!OpenScad_VersionOk) {
     assert(false, "Incompatible OpenSCAD version - requires 2025.7+ - Please upgrade to OpenSCAD nightly build");
 }
+
+// Debug: Show wing configuration objects
+echo("=== WING CONFIGURATION OBJECTS ===");
+echo("Main wing config:", main_wing_config);
+echo("Rear wing config:", rear_wing_config);
+echo("===================================");
 
 
 // Display hydrofoil specifications
@@ -661,7 +698,7 @@ else
 {
 
     // Render mode - split into printable parts
-    split_into_parts(Main_Wing_mm, Printer_BuildArea, Build_Scale, af_bbox) main_wing();
+    split_into_parts(main_wing_config.wing_mm, Printer_BuildArea, Build_Scale, af_bbox) main_wing();
 }
 
 // CARBON SPAR SYSTEM

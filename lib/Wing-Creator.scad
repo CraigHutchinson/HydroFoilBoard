@@ -242,37 +242,27 @@ function AnhedralAtPosition(z_pos, wing_mm, anhedral_degrees, start_percentage) 
  * @param tip_change_perc - Percentage where tip airfoil starts
  * @param center_change_perc - Percentage where center airfoil starts
  */
-module CreateWing(
-    wing_sections = 100,
-    wing_mm = 575,
-    root_chord_mm = 149,
-    tip_chord_mm = 50,
-    wing_mode = 2,
-    elliptic_pow = 1.5,
-    center_line_perc = 90,
-    washout_deg = 1.5,
-    washout_start = 60,
-    washout_pivot_perc = 25,
-    anhedral_degrees = 0.5,
-    anhedral_start_perc = 50,
-    tip_change_perc = 100,
-    center_change_perc = 100
-) {
-    wing_section_mm = wing_mm / wing_sections;
+/**
+ * Create a wing from a configuration object
+ * This is the new unified wing creation function that takes a wing configuration object
+ * @param wing_config - Wing configuration object with all parameters
+ */
+module CreateWing(wing_config) {
+    wing_section_mm = wing_config.wing_mm / wing_config.sections;
     
-    translate([root_chord_mm * (center_line_perc / 100), 0, 0]) {
+    translate([wing_config.root_chord_mm * (wing_config.center_line_perc / 100), 0, 0]) {
         // Create wing profiles for each section
         profiles = [
-            for (i = [0:wing_sections]) let(
-                z_pos = (wing_mode == 1) ? wing_section_mm * i : f(i, wing_sections, wing_mm),
+            for (i = [0:wing_config.sections]) let(
+                z_pos = (wing_config.wing_mode == 1) ? wing_section_mm * i : f(i, wing_config.sections, wing_config.wing_mm),
                 
                 // Calculate anhedral parameters for this position
-                anhedral_data = AnhedralAtPosition(z_pos, wing_mm, anhedral_degrees, anhedral_start_perc),
+                anhedral_data = AnhedralAtPosition(z_pos, wing_config.wing_mm, wing_config.anhedral.degrees, wing_config.anhedral.start_perc),
                 anhedral_angle = anhedral_data[0],
                 anhedral_y_offset = anhedral_data[1],
                 
                 // Get the base wing slice path
-                base_path = WingSlicePath(i, z_pos, wing_sections, wing_mode, wing_mm, root_chord_mm, tip_chord_mm, elliptic_pow, center_line_perc, washout_deg, washout_start, washout_pivot_perc, tip_change_perc, center_change_perc),
+                base_path = WingSlicePath(i, z_pos, wing_config.sections, wing_config.wing_mode, wing_config.wing_mm, wing_config.root_chord_mm, wing_config.tip_chord_mm, wing_config.elliptic_pow, wing_config.center_line_perc, wing_config.washout.degrees, wing_config.washout.start, wing_config.washout.pivot_perc, wing_config.airfoil.tip_change_perc, wing_config.airfoil.center_change_perc),
                 
                 // Create 3D path first
                 path_3d = path3d(base_path, z_pos),
@@ -290,4 +280,47 @@ module CreateWing(
         // Create the wing surface using BOSL2 skin() function
         skin(profiles, slices=0, refine=1, method="direct", sampling="segment");
     }
+}
+
+/**
+ * Legacy CreateWing function for backward compatibility
+ * Wraps the new object-based function with individual parameters
+ * @deprecated Use CreateWing(wing_config) instead
+ */
+module CreateWingLegacy(
+    wing_sections = 100,
+    wing_mm = 575,
+    root_chord_mm = 149,
+    tip_chord_mm = 50,
+    wing_mode = 2,
+    elliptic_pow = 1.5,
+    center_line_perc = 90,
+    washout_deg = 1.5,
+    washout_start = 60,
+    washout_pivot_perc = 25,
+    anhedral_degrees = 0.5,
+    anhedral_start_perc = 50,
+    tip_change_perc = 100,
+    center_change_perc = 100
+) {
+    // Create a temporary wing config object from the parameters
+    legacy_wing_config = object(
+        sections = wing_sections,
+        wing_mm = wing_mm,
+        root_chord_mm = root_chord_mm,
+        tip_chord_mm = tip_chord_mm,
+        wing_mode = wing_mode,
+        elliptic_pow = elliptic_pow,
+        center_line_perc = center_line_perc,
+        washout_deg = washout_deg,
+        washout_start = washout_start,
+        washout_pivot_perc = washout_pivot_perc,
+        anhedral_degrees = anhedral_degrees,
+        anhedral_start_perc = anhedral_start_perc,
+        tip_change_perc = tip_change_perc,
+        center_change_perc = center_change_perc
+    );
+    
+    // Call the new object-based function
+    CreateWing(legacy_wing_config);
 }

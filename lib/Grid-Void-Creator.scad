@@ -78,11 +78,11 @@ module CamberVoidTE(AFPoints)
 module GridWashoutSlice(i, scale_factor, current_chord_mm, LE)
 {
 
-    washout_start_point = (wing_mode == 1) ? (Main_Wing_Sections * (washout_start / 100))
-                                           : WashoutStart(0, Main_Wing_Sections, washout_start, Main_Wing_mm);
-    washout_deg_frac = washout_deg / (Main_Wing_Sections - washout_start_point);
+    washout_start_point = (wing_mode == 1) ? (Main_Wing_Sections * (Main_Wing_Washout_Start / 100))
+                                           : WashoutStart(0, Main_Wing_Sections, Main_Wing_Washout_Start, Main_Wing_mm);
+    washout_deg_frac = Main_Wing_Washout_Deg / (Main_Wing_Sections - washout_start_point);
     washout_deg_amount = (washout_start_point - i) * washout_deg_frac;
-    rotate_point = current_chord_mm * (washout_pivot_perc / 100);
+    rotate_point = current_chord_mm * (Main_Wing_Washout_Pivot_Perc / 100);
 
     translate([ rotate_point, 0, 0 ]) rotate(washout_deg_amount) translate([ -rotate_point, 0, 0 ])
         GridESlice(i, scale_factor, LE);
@@ -134,8 +134,8 @@ module GridSlice(z_location, i, LE)
     scale_factor = current_chord_mm / 100;
     translate([ 0, 0, z_location ]) translate([ -MainWing_Center_Line_Perc / 100 * current_chord_mm, 0, 0 ])
 
-        if (washout_deg > 0 && ((wing_mode > 1 && i > WashoutStart(0, Main_Wing_Sections, washout_start, Main_Wing_mm)) ||
-                                (wing_mode == 1 && i > (Main_Wing_Sections * (washout_start / 100)))))
+        if (Main_Wing_Washout_Deg > 0 && ((wing_mode > 1 && i > WashoutStart(0, Main_Wing_Sections, Main_Wing_Washout_Start, Main_Wing_mm)) ||
+                                (wing_mode == 1 && i > (Main_Wing_Sections * (Main_Wing_Washout_Start / 100)))))
     {
         GridWashoutSlice(i, scale_factor, current_chord_mm, LE);
     }
