@@ -104,7 +104,7 @@ MainWing_Center_Line_Perc = 90; // [0:100]
 // Wing anhedral settings (degrees)
 // Anhedral creates a downward angle of the wing tips for improved stability
 // This defines the angle of the anhedral at the tip of the wing (degrees)
-Wing_Anhedral_Degrees = 0.8; // [0:0.2:10]
+Wing_Anhedral_Degrees = 1.5; // [0:0.2:10]
 // Where anhedral starts (percentage from root)
 // This defines where the anhedral starts along the span - wing sections are rotated around x-axis and offset in y
 Wing_Anhedral_Start_At_Percentage = 50; // [0:100]
@@ -530,7 +530,7 @@ module CreateRearWing() {
 module main_wing() {
     difference() {
         difference() {
-            CreateWing(main_wing_config, add_connections=true);
+            CreateWing(main_wing_config, add_connections=false);
 
             if (add_inner_grid) {
                 union() {

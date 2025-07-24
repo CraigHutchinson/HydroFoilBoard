@@ -124,15 +124,14 @@ function ApplyWingTransforms(slice_data, wing_config) =
             scaled_path,
 
         // Create 3D path first
-        path_3d = path3d(washout_path, slice_data.nz * wing_config.wing_mm),
+        path_3d = path3d(washout_path, 0),
         
         // Apply anhedral rotation around x-axis (rotate the 3D airfoil section)
         rotated_path_3d = (slice_data.anhedral.angle != 0) ? 
-            xrot(slice_data.anhedral.angle, p=path_3d) : path_3d,
+            xrot(slice_data.anhedral.angle, p=path_3d ) : path_3d,
         
         // Apply anhedral y-offset using BOSL2 transform
-        final_path = (slice_data.anhedral.y_offset != 0) ?
-            move([0, slice_data.anhedral.y_offset, 0], p=rotated_path_3d) : rotated_path_3d
+        final_path =  move([0, slice_data.anhedral.y_offset, slice_data.nz * wing_config.wing_mm], p=rotated_path_3d)
     ) final_path;
 
 /**
@@ -277,10 +276,9 @@ function AnhedralAtPosition(nz, anhedral_start_nz, wing_mm, anhedral_degrees) =
         // tan(final_angle) = total_y_offset / anhedral_span
         // So total_y_offset = anhedral_span * tan(final_angle)
         total_y_offset_at_tip = anhedral_span_mm * tan(anhedral_degrees),
-        
+                
         // Current angle is the instantaneous slope angle at this position
-        // For a smooth arc ending at final_angle, use quadratic progression
-        angle = progress * progress * anhedral_degrees,
+        angle = progress * anhedral_degrees * 2,
         
         // Y-offset follows the arc equation: y = (total_offset) * (3*t² - 2*t³)
         // This creates a smooth S-curve that starts with zero slope and ends at the correct angle
@@ -325,43 +323,51 @@ module CreateWing(wing_config, add_connections=false, connection_length=4, wall_
     z_positions = CalculateWingZPositions(wing_config);
     bounds = get_current_split_bounds(wing_config.wing_mm);
     
-    translate([get_root_chord_mm(wing_config) * wing_config.center_line_nx, 0, 0]) {
-        
-        // Always use union/difference structure, but make connectors conditional
-        difference() {
-            union() {
-                // Main wing body
-                main_wing_profiles = [
-                    for (z_pos = z_positions) 
-                        BuildWingProfile(z_pos, wing_config)
-                ];
-                skin(main_wing_profiles, slices=0, refine=1, method="direct", sampling="segment");
+    // Calculate anhedral compensation rotation to make wing sit flat on print bed
+    // Use the bottom slice (start of bounds or z=0) to determine the rotation needed
+    bottom_slice_data = CalculateWingSliceData( bounds.start_z, wing_config);
+
+    // Apply compensation rotation around x-axis to make wing sit flat
+    //TODO; We need to reorder this as the spars are in the wrong location now
+    xrot(-bottom_slice_data.anhedral.angle) {
+        translate([get_root_chord_mm(wing_config) * wing_config.center_line_nx, 0, 0]) {
+            
+            // Always use union/difference structure, but make connectors conditional
+            difference() {
+                union() {
+                    // Main wing body
+                    main_wing_profiles = [
+                        for (z_pos = z_positions) 
+                            BuildWingProfile(z_pos, wing_config)
+                    ];
+                    skin(main_wing_profiles, slices=0, refine=1, method="direct", sampling="segment");
+                    
+                    // Add male connector at end if needed
+                    if (add_connections && bounds.end_z < wing_config.wing_mm && is_male_end) {
+                        end_slice_data = CalculateWingSliceData(bounds.end_z, wing_config);
+                        CreateMaleConnector(
+                            end_slice_data.base_path, 
+                            connection_length, 
+                            wall_thickness, 
+                            bounds.end_z, 
+                            wing_config, 
+                            end_slice_data
+                        );
+                    }
+                }
                 
-                // Add male connector at end if needed
-                if (add_connections && bounds.end_z < wing_config.wing_mm && is_male_end) {
-                    end_slice_data = CalculateWingSliceData(bounds.end_z, wing_config);
-                    CreateMaleConnector(
-                        end_slice_data.base_path, 
+                // Subtract female connector at start if needed
+                if (add_connections && bounds.start_z > 0) {
+                    start_slice_data = CalculateWingSliceData(bounds.start_z, wing_config);
+                    CreateFemaleConnector(
+                        start_slice_data.base_path, 
                         connection_length, 
                         wall_thickness, 
-                        bounds.end_z, 
+                        bounds.start_z, 
                         wing_config, 
-                        end_slice_data
+                        start_slice_data
                     );
                 }
-            }
-            
-            // Subtract female connector at start if needed
-            if (add_connections && bounds.start_z > 0) {
-                start_slice_data = CalculateWingSliceData(bounds.start_z, wing_config);
-                CreateFemaleConnector(
-                    start_slice_data.base_path, 
-                    connection_length, 
-                    wall_thickness, 
-                    bounds.start_z, 
-                    wing_config, 
-                    start_slice_data
-                );
             }
         }
     }
