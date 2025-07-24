@@ -70,18 +70,21 @@ function CalculateAirfoilPaths() =
     );
 
 /**
- * Calculate the chord length at a specific wing position (unified interface)
+ * Calculate the chord length at a specific wing position
  * @param nz - Normalized Z position (0 to 1) along the wing span
- * @param wing_mode - Wing shape mode (1=trapezoidal, 2=elliptic)
- * @param root_chord_mm - Root chord length in mm
- * @param tip_chord_mm - Tip chord length in mm (for trapezoidal)
- * @param elliptic_pow - Elliptic distribution power factor (for elliptic)
+ * @param chord_profile - Chord profile object containing wing geometry parameters
  * @return current_chord_mm - Chord length in millimeters at this position
  */
-function WingSliceChordLength(nz, wing_mode, root_chord_mm, tip_chord_mm=50, elliptic_pow=1.5) = 
-    (wing_mode == 1) 
-        ? ChordLengthTrapezoidal(nz, root_chord_mm, tip_chord_mm)
-        : ChordLengthElliptical(nz, root_chord_mm, elliptic_pow);
+function WingSliceChordLength(nz, chord_profile) = 
+    (chord_profile.wing_mode == 1) 
+        ? ChordLengthTrapezoidal(nz, chord_profile.root_chord_mm, chord_profile.tip_chord_mm)
+        : ChordLengthElliptical(nz, chord_profile.root_chord_mm, chord_profile.elliptic_pow);
+
+// Helper functions to access chord profile components
+function get_wing_mode(wing_config) = wing_config.chord_profile.wing_mode;
+function get_root_chord_mm(wing_config) = wing_config.chord_profile.root_chord_mm;
+function get_tip_chord_mm(wing_config) = wing_config.chord_profile.tip_chord_mm;
+function get_elliptic_pow(wing_config) = wing_config.chord_profile.elliptic_pow;
 
 /**
  * Applies washout rotation to an airfoil path
@@ -122,8 +125,8 @@ function CalculateWingSliceData(z_pos, wing_config, cached_paths) =
         // Calculate normalized position once for this z_pos
         nz = z_pos / wing_config.wing_mm,
         
-        // Calculate chord length for this position
-        current_chord_mm = WingSliceChordLength(nz, wing_config.wing_mode, wing_config.root_chord_mm, wing_config.tip_chord_mm, wing_config.elliptic_pow),
+        // Calculate chord length for this position using chord profile
+        current_chord_mm = WingSliceChordLength(nz, wing_config.chord_profile),
         
         // Calculate anhedral parameters for this position
         anhedral = AnhedralAtPosition(nz, wing_config.anhedral.start_nz, wing_config.wing_mm, wing_config.anhedral.degrees),
@@ -195,7 +198,7 @@ function CalculateWingZPositions(wing_config) =
         
         // Normal sections within bounds
         for (i = [0:wing_config.sections]) let(
-            z_pos = (wing_config.wing_mode == 1) ? 
+            z_pos = (get_wing_mode(wing_config) == 1) ? 
                 wing_section_mm * i : 
                 QuadraticWingPosition(i, wing_config.sections, wing_config.wing_mm)
         ) if (z_pos > bounds.start_z && z_pos < bounds.end_z) z_pos,
@@ -360,7 +363,7 @@ module CreateWing(wing_config, add_connections=false, connection_length=4, wall_
     z_positions = CalculateWingZPositions(wing_config);
     bounds = get_current_split_bounds(wing_config.wing_mm);
     
-    translate([wing_config.root_chord_mm * wing_config.center_line_nx, 0, 0]) {
+    translate([get_root_chord_mm(wing_config) * wing_config.center_line_nx, 0, 0]) {
         
         // Always use union/difference structure, but make connectors conditional
         difference() {

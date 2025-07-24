@@ -120,16 +120,35 @@ tip_airfoil_change_perc = 100; // [0:100]
 // Number of slices for airfoil blending (0 = off)
 slice_transisions = 0; // [0:1:20]
 
+/*
+ * WING CONFIGURATION OBJECTS
+ * 
+ * The wing configuration system uses hierarchical objects to organize parameters logically.
+ * Key features:
+ * 
+ * - chord_profile: Groups all chord calculation parameters (root_chord_mm, tip_chord_mm, wing_mode, elliptic_pow)
+ * - WingSliceChordLength() accepts a chord_profile object for clean, type-safe interface
+ * - Helper functions (get_wing_mode, get_root_chord_mm, etc.) provide clean access to chord profile components
+ * - create_chord_profile() function allows easy creation of chord profile objects
+ * 
+ * This makes function calls cleaner and reduces parameter passing complexity.
+ * All legacy parameter-based interfaces have been removed for cleaner code.
+ */
+
 // Main Wing Configuration Object - Hierarchical Structure
 main_wing_config = object(
     // Basic geometry
     sections = Main_Wing_Sections,
     wing_mm = Main_Wing_mm,
-    root_chord_mm = Main_Wing_Root_Chord_MM,
-    tip_chord_mm = Main_Wing_Tip_Chord_MM,
-    wing_mode = Main_Wing_Mode,
-    elliptic_pow = Main_Wing_Eliptic_Pow,
     center_line_nx = MainWing_Center_Line_Perc/100,
+    
+    // Chord profile configuration - groups all chord-related parameters
+    chord_profile = object(
+        root_chord_mm = Main_Wing_Root_Chord_MM,
+        tip_chord_mm = Main_Wing_Tip_Chord_MM,
+        wing_mode = Main_Wing_Mode,
+        elliptic_pow = Main_Wing_Eliptic_Pow
+    ),
     
     // Anhedral configuration
     anhedral = object(
@@ -202,11 +221,15 @@ rear_wing_config = object(
     // Basic geometry
     sections = Rear_Wing_sections,
     wing_mm = Rear_Wing_mm,
-    root_chord_mm = Rear_Wing_root_chord_mm,
-    tip_chord_mm = Rear_Wing_tip_chord_mm,
-    wing_mode = Rear_Wing_mode,
-    elliptic_pow = Rear_Wing_eliptic_pow,
     center_line_nx = Rear_MainWing_Center_Line_Perc/100,
+    
+    // Chord profile configuration - groups all chord-related parameters
+    chord_profile = object(
+        root_chord_mm = Rear_Wing_root_chord_mm,
+        tip_chord_mm = Rear_Wing_tip_chord_mm,
+        wing_mode = Rear_Wing_mode,
+        elliptic_pow = Rear_Wing_eliptic_pow
+    ),
     
     // Anhedral configuration
     anhedral = object(
@@ -370,6 +393,20 @@ function MidAirfoilPath() = af_vec_path_mid;
 function TipAirfoilPath() = af_vec_path_tip;
 
 // CARBON SPAR SYSTEM
+// Helper functions to access chord profile components cleanly
+function get_wing_mode(wing_config) = wing_config.chord_profile.wing_mode;
+function get_root_chord_mm(wing_config) = wing_config.chord_profile.root_chord_mm;
+function get_tip_chord_mm(wing_config) = wing_config.chord_profile.tip_chord_mm;
+function get_elliptic_pow(wing_config) = wing_config.chord_profile.elliptic_pow;
+
+// Helper function to create a chord profile object
+function create_chord_profile(root_chord_mm, tip_chord_mm, wing_mode, elliptic_pow) = object(
+    root_chord_mm = root_chord_mm,
+    tip_chord_mm = tip_chord_mm,
+    wing_mode = wing_mode,
+    elliptic_pow = elliptic_pow
+);
+
 // Function to create a new spar configuration
 // perc: Percentage from leading edge
 // diam: Size of the spar hole
@@ -379,7 +416,7 @@ function new_spar(perc, diam, length, offset, offset_from=undef) = [
     perc,
     diam * Build_Scale,
     length * Build_Scale,
-    ((offset_from != undef ? calculate_spar_offset_at_chord_position(perc, offset_from) * (WingSliceChordLength(0, main_wing_config.wing_mode, main_wing_config.root_chord_mm, main_wing_config.tip_chord_mm, main_wing_config.elliptic_pow)/100) : 0) + offset) * Build_Scale
+    ((offset_from != undef ? calculate_spar_offset_at_chord_position(perc, offset_from) * (WingSliceChordLength(0, main_wing_config.chord_profile)/100) : 0) + offset) * Build_Scale
 ];
 
 // Spar accessor functions
@@ -443,9 +480,9 @@ module main_wing() {
                     difference() {
                         difference() {
                             if (grid_mode == 1) {
-                                StructureGrid(main_wing_config.wing_mm, main_wing_config.root_chord_mm, grid_size_factor);
+                                StructureGrid(main_wing_config.wing_mm, get_root_chord_mm(main_wing_config), grid_size_factor);
                             } else {
-                                StructureSparGrid(main_wing_config.wing_mm, main_wing_config.root_chord_mm, grid_size_factor, spar_num, spar_offset,
+                                StructureSparGrid(main_wing_config.wing_mm, get_root_chord_mm(main_wing_config), grid_size_factor, spar_num, spar_offset,
                                                   rib_num, rib_offset);
                             }
                             union() {
@@ -745,10 +782,8 @@ function calculate_spar_offset_at_chord_position(perc, line="MID", position_mm =
 // Function to calculate wing slice scale factor based on position
 function MainWingSliceScaleFactorEliptical(position_mm) = 
     let(
-        // Calculate chord at this position using elliptic distribution
-        current_chord = (Main_Wing_Mode == 1) 
-            ? ChordLengthTrapezoidal(position_mm / Main_Wing_mm, Main_Wing_Root_Chord_MM, Main_Wing_Tip_Chord_MM)
-            : ChordLengthElliptical(position_mm / Main_Wing_mm, Main_Wing_Root_Chord_MM, Main_Wing_Eliptic_Pow),
+        // Calculate chord at this position using chord profile
+        current_chord = WingSliceChordLength(position_mm / Main_Wing_mm, main_wing_config.chord_profile),
         
         // Scale factor normalized to 100mm base chord
         scale_factor = current_chord / 100
@@ -767,10 +802,10 @@ module visualize_wing_area_calculation(wing_config) {
     step_size = wing_config.wing_mm / steps;
     
     // Apply the same translation as CreateWing uses
-    translate([wing_config.root_chord_mm * wing_config.center_line_nx, 0, 0]) {
+    translate([get_root_chord_mm(wing_config) * wing_config.center_line_nx, 0, 0]) {
         for (i = [0:steps-1]) {
             position = i * step_size;
-            chord = WingSliceChordLength(position / wing_config.wing_mm, wing_config.wing_mode, wing_config.root_chord_mm, wing_config.tip_chord_mm, wing_config.elliptic_pow);
+            chord = WingSliceChordLength(position / wing_config.wing_mm, wing_config.chord_profile);
             
             color([1, 0.5, 0, 0.3]) // Semi-transparent orange
             translate([-wing_config.center_line_nx * chord, 0, position])
@@ -793,7 +828,7 @@ function calculate_actual_wing_area(wing_config) =
                 position = i * step_size,
                 // Use midpoint for better accuracy and existing WingSliceChordLength function
                 nz = (position + step_size/2) / wing_config.wing_mm,
-                chord_at_position = WingSliceChordLength(nz, wing_config.wing_mode, wing_config.root_chord_mm, wing_config.tip_chord_mm, wing_config.elliptic_pow)
+                chord_at_position = WingSliceChordLength(nz, wing_config.chord_profile)
             ) chord_at_position * step_size
         ],
         
