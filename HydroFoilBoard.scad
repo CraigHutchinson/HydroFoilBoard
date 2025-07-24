@@ -379,7 +379,7 @@ function new_spar(perc, diam, length, offset, offset_from=undef) = [
     perc,
     diam * Build_Scale,
     length * Build_Scale,
-    ((offset_from != undef ? calculate_spar_offset_at_chord_position(perc, offset_from) : 0) + offset) * Build_Scale
+    ((offset_from != undef ? calculate_spar_offset_at_chord_position(perc, offset_from) * (WingSliceChordLength(0, main_wing_config.wing_mode, main_wing_config.root_chord_mm, main_wing_config.tip_chord_mm, main_wing_config.elliptic_pow)/100) : 0) + offset) * Build_Scale
 ];
 
 // Spar accessor functions
@@ -740,7 +740,7 @@ function calculate_spar_offset_at_chord_position(perc, line="MID", position_mm =
         
         // Get the y-coordinate at that position
         y_offset = af_vec[closest_index][1]
-    ) y_offset * MainWingSliceScaleFactorEliptical(position_mm); // Scale the offset based on the current wing slice scale factor
+    ) y_offset;
 
 // Function to calculate wing slice scale factor based on position
 function MainWingSliceScaleFactorEliptical(position_mm) = 
