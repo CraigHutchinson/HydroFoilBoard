@@ -1,6 +1,11 @@
 include <BOSL2/std.scad>
 include <BOSL2/joiners.scad>
 
+// Module for root airfoil polygon
+// TODO: e817 looks good but not in DB presently
+include <lib/openscad-airfoil/e/e818.scad>
+
+
 // HYDROFOIL BOARD WING GENERATOR
 // RC wing generator for Vase mode printing
 //
@@ -117,6 +122,50 @@ Main_Wing_Washout_Pivot_Perc = 25; // [0:100]
 center_airfoil_change_perc = 100; // [0:100]
 // Where to change to tip airfoil (100 = off)
 tip_airfoil_change_perc = 100; // [0:100]
+
+// Helper function to create a complete airfoil object from original airfoil data
+// airfoil_slice_original: Original airfoil slice data from airfoil library
+// trailing_edge_thickness: Minimum trailing edge thickness for 3D printing
+// Returns an object containing all airfoil components (top, bottom, mid, path, preview paths)
+function create_airfoil_object(airfoil_slice_original, trailing_edge_thickness) = 
+    let(
+        // Modify airfoil slice data for 3D printing
+        af_slice = modify_airfoil_for_printing(airfoil_slice_original, trailing_edge_thickness),
+        
+        // Extract surface lines from modified slice data
+        af_top = [for (i = af_slice) [i.x, i.y]],       // Top surface line
+        af_bottom = [for (i = af_slice) [i.x, i.z]],    // Bottom surface line
+        
+        // Mean camber line - midline halfway between top and bottom surfaces
+        af_mid = [for (i = af_slice) [i.x, (i.y + i.z) / 2]],
+        
+        // Create airfoil path from modified surface data
+        af_path = create_airfoil_path_from_surfaces(af_top, af_bottom)
+    ) object(
+        top = af_top,
+        bottom = af_bottom,
+        mid = af_mid,
+        path = af_path,
+        // Pre-resampled paths for preview mode
+        path_preview = resample_path(af_path, n=30, keep_corners=10, closed=true)
+    );
+
+// Create airfoil object from E818 airfoil data
+af_root = create_airfoil_object(airfoil_E818_slice(), Trailing_Edge_Thickness);
+
+// Legacy variables for backward compatibility (these can be removed once all references are updated)
+af_vec_root_slice_original = airfoil_E818_slice();
+af_vec_root_slice = modify_airfoil_for_printing(af_vec_root_slice_original, Trailing_Edge_Thickness);
+af_vec_root_top = af_root.top;
+af_vec_root_bottom = af_root.bottom;
+af_vec_path_root = af_root.path;
+af_vec_path_mid = af_root.path;
+af_vec_path_tip = af_root.path;
+af_vec_mean_camber = af_root.mid;
+
+// Airfoil bounding box
+af_bbox = airfoil_E818_range();
+
 // Number of slices for airfoil blending (0 = off)
 slice_transisions = 0; // [0:1:20]
 
@@ -127,11 +176,14 @@ slice_transisions = 0; // [0:1:20]
  * Key features:
  * 
  * - chord_profile: Groups all chord calculation parameters (root_chord_mm, tip_chord_mm, wing_mode, elliptic_pow)
+ * - airfoil.paths: Pre-computed airfoil paths for optimal performance (full + preview resolution)
  * - WingSliceChordLength() accepts a chord_profile object for clean, type-safe interface
- * - Helper functions (get_wing_mode, get_root_chord_mm, etc.) provide clean access to chord profile components
- * - create_chord_profile() function allows easy creation of chord profile objects
+ * - Helper functions provide clean access to all configuration components
+ * - wing_config_summary() creates debug-friendly output without bulky path data
+ * - get_airfoil_path() provides clean access to airfoil paths when needed
  * 
- * This makes function calls cleaner and reduces parameter passing complexity.
+ * This makes function calls cleaner, reduces parameter passing complexity, and eliminates
+ * runtime path generation overhead by pre-computing all airfoil paths at configuration time.
  * All legacy parameter-based interfaces have been removed for cleaner code.
  */
 
@@ -166,7 +218,17 @@ main_wing_config = object(
     // Airfoil transition configuration
     airfoil = object(
         tip_change_nz = tip_airfoil_change_perc/100,
-        center_change_nz = center_airfoil_change_perc/100
+        center_change_nz = center_airfoil_change_perc/100,
+        // Pre-computed airfoil paths for performance
+        paths = object(
+            root = af_root.path,
+            mid = af_root.path,
+            tip = af_root.path,
+            // Pre-resampled paths for preview mode
+            root_preview = af_root.path_preview,
+            mid_preview = af_root.path_preview,
+            tip_preview = af_root.path_preview
+        )
     ),
     
     // Print splitting configuration
@@ -247,7 +309,17 @@ rear_wing_config = object(
     // Airfoil transition configuration
     airfoil = object(
         tip_change_nz = tip_airfoil_change_perc/100,
-        center_change_nz = center_airfoil_change_perc/100
+        center_change_nz = center_airfoil_change_perc/100,
+        // Pre-computed airfoil paths for performance
+        paths = object(
+            root = af_root.path,
+            mid = af_root.path,
+            tip = af_root.path,
+            // Pre-resampled paths for preview mode
+            root_preview = af_root.path_preview,
+            mid_preview = af_root.path_preview,
+            tip_preview = af_root.path_preview
+        )
     ),
     
     // Print splitting configuration
@@ -308,96 +380,53 @@ rib_num = 6; // [1:1:20]
 // Rib offset
 rib_offset = 1; // [0:1:10]
 
-/* [Hidden] */
-// AIRFOIL DEFINITIONS
-// Module for root airfoil polygon
-// TODO: e817 looks good but not in DB presently
-include <lib/openscad-airfoil/e/e818.scad>
-
-
-// Function to modify airfoil data for 3D printing compatibility
-// This function modifies both path and slice data consistently
-function modify_airfoil_for_printing(original_slice, min_thickness = 0.3) = 
-    let(
-        // Modify each slice point
-        modified_slice = [for (iSlice = original_slice)
-            let(
-                slice_perc = iSlice.x,
-                slice_top = iSlice.y,
-                slice_bottom = iSlice.z,
-                                
-                // Get current thickness
-                current_thickness = abs(slice_top - slice_bottom),
-                
-                // Calculate thickness adjustment needed
-                thickness_adjustment = current_thickness < min_thickness ? 
-                    (min_thickness - current_thickness) / 2 : 0,
-
-                // Apply modification to upper and lower surfaces
-                modified_top = slice_top + thickness_adjustment,
-                modified_bottom = slice_bottom - thickness_adjustment
-            ) [slice_perc, modified_top, modified_bottom]
-        ]
-    ) modified_slice;
-
-// Get original airfoil data
-af_vec_slice_original = airfoil_E818_slice();
-
-// Modify airfoil slice data for 3D printing
-af_vec_slice = modify_airfoil_for_printing(af_vec_slice_original, Trailing_Edge_Thickness);
-
-// Extract surface lines from modified slice data
-af_vec_top = [for (i = af_vec_slice) [i.x, i.y]];       // Top surface line
-af_vec_bottom = [for (i = af_vec_slice) [i.x, i.z]];    // Bottom surface line
-
-// Function to create airfoil path from top and bottom surface lines
-function create_airfoil_path_from_surfaces(top_surface, bottom_surface) = 
-    let(
-        // Reverse bottom surface to create continuous path
-        bottom_reversed = [for (i = [len(bottom_surface) - 1 : -1 : 0]) bottom_surface[i]],
-        
-        // Combine top and bottom surfaces into single path
-        combined_path = concat(top_surface, bottom_reversed)
-    ) combined_path;
-
-// Create airfoil paths from modified surface data
-af_vec_path_root = create_airfoil_path_from_surfaces(af_vec_top, af_vec_bottom);
-af_vec_path_mid = af_vec_path_root;
-af_vec_path_tip = af_vec_path_root;
-
-// Mean camber line - midline halfway between top and bottom surfaces
-af_vec_mean_camber = [for (i = af_vec_slice) [i.x, (i.y + i.z) / 2]];
-
-// Airfoil bounding box
-af_bbox = airfoil_E818_range();
-
-// AIRFOIL PATH FUNCTIONS FOR BOSL2 SKIN
-// These functions return airfoil path data that can be used with BOSL2's skin() function
-
-/**
- * Returns the root airfoil path as a 2D point array
- * Suitable for use with BOSL2 skin() function
- */
-function RootAirfoilPath() = af_vec_path_root;
-
-/**
- * Returns the mid airfoil path as a 2D point array
- * Suitable for use with BOSL2 skin() function
- */
-function MidAirfoilPath() = af_vec_path_mid;
-
-/**
- * Returns the tip airfoil path as a 2D point array
- * Suitable for use with BOSL2 skin() function
- */
-function TipAirfoilPath() = af_vec_path_tip;
-
 // CARBON SPAR SYSTEM
 // Helper functions to access chord profile components cleanly
 function get_wing_mode(wing_config) = wing_config.chord_profile.wing_mode;
 function get_root_chord_mm(wing_config) = wing_config.chord_profile.root_chord_mm;
 function get_tip_chord_mm(wing_config) = wing_config.chord_profile.tip_chord_mm;
 function get_elliptic_pow(wing_config) = wing_config.chord_profile.elliptic_pow;
+
+// Helper functions to access airfoil paths cleanly
+function get_airfoil_path(wing_config, path_type="root", preview=false) = 
+    let(
+        paths = wing_config.airfoil.paths,
+        path = (path_type == "tip") ? (preview ? paths.tip_preview : paths.tip) :
+               (path_type == "mid") ? (preview ? paths.mid_preview : paths.mid) :
+               (preview ? paths.root_preview : paths.root)
+    ) path;
+
+// Helper function to access airfoil surface data
+// Uses BOSL2 anchor constants for consistent interface
+function get_airfoil_surface(surface_anchor=CENTER) = 
+    surface_anchor == TOP ? af_root.top :
+    surface_anchor == BOTTOM ? af_root.bottom :
+    af_root.mid; // Default to mean camber for CENTER or any other value
+
+// Function to calculate the ideal spar offset based on airfoil geometry
+// perc: Percentage from leading edge (0-100)  
+// wing_config: Wing configuration object containing airfoil data
+// anchor: BOSL2 anchor constant (TOP, BOTTOM, CENTER) for airfoil surface selection
+// Returns the y-offset at that chord position for optimal structural positioning
+function calculate_spar_offset_at_chord_position(perc, wing_config, anchor=CENTER) = 
+    let(
+        // Since data is sorted by x-coordinate, find the first point >= target
+        target_x = perc,
+        
+        // Get the appropriate airfoil line data using anchor
+        af_vec = get_airfoil_surface(anchor),
+        
+        // Simple linear search for the closest point (efficient for small datasets)
+        closest_index = 
+            target_x <= af_vec[0][0] ? 0 :
+            target_x >= af_vec[len(af_vec)-1][0] ? len(af_vec)-1 :
+            // Find first point where x >= target_x
+            [for (i = [0 : len(af_vec) - 1]) 
+                if (af_vec[i][0] >= target_x) i][0],
+        
+        // Get the y-coordinate at that position
+        y_offset = af_vec[closest_index][1]
+    ) y_offset;
 
 // Helper function to create a chord profile object
 function create_chord_profile(root_chord_mm, tip_chord_mm, wing_mode, elliptic_pow) = object(
@@ -407,16 +436,44 @@ function create_chord_profile(root_chord_mm, tip_chord_mm, wing_mode, elliptic_p
     elliptic_pow = elliptic_pow
 );
 
-// Function to create a new spar configuration
+// Helper function to create airfoil paths object
+function create_airfoil_paths() = object(
+    root = af_root.path,
+    mid = af_root.path,
+    tip = af_root.path,
+    // Pre-resampled paths for preview mode
+    root_preview = af_root.path_preview,
+    mid_preview = af_root.path_preview,
+    tip_preview = af_root.path_preview
+);
+
+// Helper function to create a wing config summary for debug printing (excludes bulky path data)
+function wing_config_summary(wing_config) = object(
+    sections = wing_config.sections,
+    wing_mm = wing_config.wing_mm,
+    center_line_nx = wing_config.center_line_nx,
+    chord_profile = wing_config.chord_profile,
+    anhedral = wing_config.anhedral,
+    washout = wing_config.washout,
+    airfoil = object(
+        tip_change_nz = wing_config.airfoil.tip_change_nz,
+        center_change_nz = wing_config.airfoil.center_change_nz,
+        paths = "[AIRFOIL PATHS OMITTED FOR READABILITY]"
+    ),
+    print = wing_config.print
+);
+
+// Function to create a new spar configuration using BOSL2 anchor constants
 // perc: Percentage from leading edge
-// diam: Size of the spar hole
+// diam: Size of the spar hole  
 // length: Length of the spar in mm
-// offset: Optional manual offset override (if not provided, uses calculated offset)
-function new_spar(perc, diam, length, offset, offset_from=undef) = [
+// offset: Manual offset override
+// anchor: BOSL2 anchor constant (TOP, BOTTOM, CENTER) for airfoil positioning
+function new_spar(perc, diam, length, offset, anchor=undef) = [
     perc,
     diam * Build_Scale,
     length * Build_Scale,
-    ((offset_from != undef ? calculate_spar_offset_at_chord_position(perc, offset_from) * (WingSliceChordLength(0, main_wing_config.chord_profile)/100) : 0) + offset) * Build_Scale
+    ((anchor != undef ? calculate_spar_offset_at_chord_position(perc, main_wing_config, anchor) * (WingSliceChordLength(0, main_wing_config.chord_profile)/100) : 0) + offset) * Build_Scale
 ];
 
 // Spar accessor functions
@@ -426,14 +483,14 @@ function spar_hole_length(spar) = spar[2];
 function spar_hole_offset(spar) = spar[3];
 
 // Spar hole configurations
-// Uses calculated offsets based on mean camber line for optimal structural positioning
+// Uses calculated offsets based on airfoil geometry for optimal structural positioning
 spar_holes = [
     // Full-span Spars go through, the wing but are split at the center line (May optionally be glued into the wing structure)
-    new_spar(10, Spar_Hole_Small_Diameter, 300, 0.5, "MIDDLE"),
-    new_spar(15, Spar_Hole_Small_Diameter, 250, -2.5, "TOP"), new_spar(15, Spar_Hole_Small_Diameter, 250, 3.25, "BOTTOM"),
-    new_spar(35, Spar_Hole_Small_Diameter, 300, -2.5, "TOP"), new_spar(35, Spar_Hole_Small_Diameter, 450, 3, "BOTTOM"),
-    new_spar(55, Spar_Hole_Small_Diameter, 300, -3, "TOP"), new_spar(55, Spar_Hole_Small_Diameter, 450, 3, "BOTTOM"),
-    new_spar(75, Spar_Hole_Small_Diameter, 400, -1.0, "MIDDLE"),
+    new_spar(10, Spar_Hole_Small_Diameter, 300, 0.5, CENTER),
+    new_spar(15, Spar_Hole_Small_Diameter, 250, -2.5, TOP), new_spar(15, Spar_Hole_Small_Diameter, 250, 3.25, BOTTOM),
+    new_spar(35, Spar_Hole_Small_Diameter, 300, -2.5, TOP), new_spar(35, Spar_Hole_Small_Diameter, 450, 3, BOTTOM),
+    new_spar(55, Spar_Hole_Small_Diameter, 300, -3, TOP), new_spar(55, Spar_Hole_Small_Diameter, 450, 3, BOTTOM),
+    new_spar(75, Spar_Hole_Small_Diameter, 400, -1.0, CENTER),
 
     // Full-span Spars go through the fuselage as one piece
     new_spar(25, Spar_Hole_Large_Diameter, 400, 0.5),
@@ -553,10 +610,10 @@ if (!OpenScad_VersionOk) {
     assert(false, "Incompatible OpenSCAD version - requires 2025.7+ - Please upgrade to OpenSCAD nightly build");
 }
 
-// Debug: Show wing configuration objects
+// Debug: Show wing configuration objects (paths omitted for readability)
 echo("=== WING CONFIGURATION OBJECTS ===");
-echo("Main wing config:", main_wing_config);
-echo("Rear wing config:", rear_wing_config);
+echo("Main wing config:", wing_config_summary(main_wing_config));
+echo("Rear wing config:", wing_config_summary(rear_wing_config));
 echo("===================================");
 
 
@@ -652,10 +709,10 @@ if(Build_CalibrationParts) {
                     for (iSpar = [-1:1]) {
                         tolerance = (iSpar+Spar_Calibration_Large_Hole_ResultIndex) * (max_tolerance/count);
 
-                        smallSpar=new_spar(15 + ((iSpar+1) * 4) , Spar_Rod_Small_Diameter + tolerance, thickness+2, Spar_Rod_Small_Diameter/2 + 1.5+max_tolerance, "BOTTOM");
+                        smallSpar=new_spar(15 + ((iSpar+1) * 4) , Spar_Rod_Small_Diameter + tolerance, thickness+2, Spar_Rod_Small_Diameter/2 + 1.5+max_tolerance, BOTTOM);
                         CreateSparHole(smallSpar);
 
-                        largeSpar=new_spar(15 + ((iSpar+1) * 4) , Spar_Rod_Large_Diameter + tolerance, thickness+2, -(Spar_Rod_Large_Diameter/2 +1.5+max_tolerance), "TOP");
+                        largeSpar=new_spar(15 + ((iSpar+1) * 4) , Spar_Rod_Large_Diameter + tolerance, thickness+2, -(Spar_Rod_Large_Diameter/2 +1.5+max_tolerance), TOP);
                         CreateSparHole(largeSpar);
                     }
                  }
@@ -665,10 +722,10 @@ if(Build_CalibrationParts) {
                     for (iSpar = [0:count]) {
                         tolerance = iSpar * (max_tolerance/count);
 
-                        smallSpar=new_spar(15 + (iSpar * 4) , Spar_Rod_Small_Diameter + tolerance, thickness+2, Spar_Rod_Small_Diameter/2 + 1.5+max_tolerance, "BOTTOM");
+                        smallSpar=new_spar(15 + (iSpar * 4) , Spar_Rod_Small_Diameter + tolerance, thickness+2, Spar_Rod_Small_Diameter/2 + 1.5+max_tolerance, BOTTOM);
                         CreateSparHole(smallSpar);
 
-                        largeSpar=new_spar(15 + (iSpar * 4) , Spar_Rod_Large_Diameter + tolerance, thickness+2, -(Spar_Rod_Large_Diameter/2 +1.5+max_tolerance), "TOP");
+                        largeSpar=new_spar(15 + (iSpar * 4) , Spar_Rod_Large_Diameter + tolerance, thickness+2, -(Spar_Rod_Large_Diameter/2 +1.5+max_tolerance), TOP);
                         CreateSparHole(largeSpar);
                     }
                 }
@@ -757,15 +814,16 @@ else
 // CARBON SPAR SYSTEM
 // Function to calculate the ideal spar offset based on mean camber line
 // perc: Percentage from leading edge (0-100)
+// wing_config: Wing configuration object containing airfoil data
+// anchor: BOSL2 anchor constant (TOP, BOTTOM, or CENTER for mean camber)
 // Returns the y-offset at that chord position for optimal structural positioning
-function calculate_spar_offset_at_chord_position(perc, line="MID", position_mm = 0) = 
+function calculate_spar_offset_at_chord_position(perc, wing_config, anchor=CENTER) = 
     let(
         // Since data is sorted by x-coordinate, find the first point >= target
         target_x = perc,
         
-        af_vec = line=="TOP" ? af_vec_top :
-                 line=="BOTTOM" ? af_vec_bottom :
-                 af_vec_mean_camber, //< undef == af_vec_mean_camber
+        // Get the appropriate airfoil line data using helper function
+        af_vec = get_airfoil_surface(anchor),
         
         // Simple linear search for the closest point (efficient for small datasets)
         closest_index = 
@@ -778,17 +836,6 @@ function calculate_spar_offset_at_chord_position(perc, line="MID", position_mm =
         // Get the y-coordinate at that position
         y_offset = af_vec[closest_index][1]
     ) y_offset;
-
-// Function to calculate wing slice scale factor based on position
-function MainWingSliceScaleFactorEliptical(position_mm) = 
-    let(
-        // Calculate chord at this position using chord profile
-        current_chord = WingSliceChordLength(position_mm / Main_Wing_mm, main_wing_config.chord_profile),
-        
-        // Scale factor normalized to 100mm base chord
-        scale_factor = current_chord / 100
-    ) scale_factor;
-
 
 //Calculate the 2d projection of the wing which defines its area
 // Note: Use this module to render and measure the wing area

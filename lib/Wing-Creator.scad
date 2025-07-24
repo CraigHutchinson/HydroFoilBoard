@@ -5,6 +5,11 @@
  * Uses functional approach with path-based operations for efficiency.
  * Depends on BOSL2 library for advanced geometric operations.
  * 
+ * PERFORMANCE OPTIMIZATION:
+ * - Airfoil paths are pre-computed at configuration time and stored in wing_config
+ * - Both full-resolution and preview-optimized paths are cached
+ * - Eliminates runtime path generation and resampling overhead
+ * 
  * NEW: Connection Features for Multi-Part Printing
  * - Use CreateWing(wing_config, add_connections=true) for wings with male/female connectors
  * - Male connectors: Tapered extrusions added to wing ends (union operation)
@@ -17,57 +22,19 @@ include <BOSL2/std.scad>
 
 /**
  * Returns the appropriate airfoil path based on normalized wing position
- * Uses cached paths for better performance during wing generation
+ * Uses pre-computed paths from wing configuration for optimal performance
  * @param nz - Normalized Z position (0 to 1) along the wing span
- * @param tip_change_nz - Percentage where tip airfoil starts (default: 1)
- * @param center_change_nz - Percentage where center airfoil starts (default: 1)
- * @param cached_paths - Optional pre-cached airfoil paths object
+ * @param wing_config - Wing configuration object containing pre-computed paths
  */
-function GetAirfoilPath(nz, tip_change_nz=1, center_change_nz=1, cached_paths=undef) = 
+function GetAirfoilPath(nz, wing_config) = 
     let(
-        // Use cached paths if available, otherwise generate them
-        root_path = (cached_paths != undef) ? cached_paths.root : RootAirfoilPath(),
-        mid_path = (cached_paths != undef) ? cached_paths.mid : MidAirfoilPath(),
-        tip_path = (cached_paths != undef) ? cached_paths.tip : TipAirfoilPath(),
-        
-        // Get base airfoil path
-        base_path = (nz > tip_change_nz) ? tip_path :
-                   (nz > center_change_nz) ? mid_path :
-                   root_path,
-        
-        // Use cached simplified path if available, otherwise generate
-        simplified_path = (cached_paths != undef && $preview) ? 
-            ((nz > tip_change_nz) ? cached_paths.tip_simplified :
-             (nz > center_change_nz) ? cached_paths.mid_simplified :
-             cached_paths.root_simplified) :
-            ($preview ? resample_path(base_path, n=30, keep_corners=10, closed=true) : base_path)
-    )
-    simplified_path;
-
-/**
- * Pre-generate and cache all airfoil paths for efficient wing generation
- * This avoids repeated path generation and simplification during wing creation
- * @return object with cached full and simplified airfoil paths
- */
-function CalculateAirfoilPaths() = 
-    let(
-        // Generate base paths once
-        root_path = RootAirfoilPath(),
-        mid_path = MidAirfoilPath(),
-        tip_path = TipAirfoilPath(),
-        
-        // Pre-generate simplified paths for preview mode
-        root_simplified = resample_path(root_path, n=30, keep_corners=10, closed=true),
-        mid_simplified = resample_path(mid_path, n=30, keep_corners=10, closed=true),
-        tip_simplified = resample_path(tip_path, n=30, keep_corners=10, closed=true)
-    ) object(
-        root = root_path,
-        mid = mid_path,
-        tip = tip_path,
-        root_simplified = root_simplified,
-        mid_simplified = mid_simplified,
-        tip_simplified = tip_simplified
-    );
+        // Choose appropriate path based on position
+        base_path = (nz > wing_config.airfoil.tip_change_nz) ? 
+                      ($preview ? wing_config.airfoil.paths.tip_preview : wing_config.airfoil.paths.tip) :
+                    (nz > wing_config.airfoil.center_change_nz) ? 
+                      ($preview ? wing_config.airfoil.paths.mid_preview : wing_config.airfoil.paths.mid) :
+                      ($preview ? wing_config.airfoil.paths.root_preview : wing_config.airfoil.paths.root)
+    ) base_path;
 
 /**
  * Calculate the chord length at a specific wing position
@@ -117,10 +84,9 @@ function ApplyWashoutToPath(path, nz, washout_start_nz, current_chord_mm, washou
  * Calculate wing slice data for a given position
  * @param z_pos - Absolute Z position along wing span
  * @param wing_config - Wing configuration object
- * @param cached_paths - Pre-cached airfoil paths
  * @return object with slice geometry data
  */
-function CalculateWingSliceData(z_pos, wing_config, cached_paths) =
+function CalculateWingSliceData(z_pos, wing_config) =
     let(
         // Calculate normalized position once for this z_pos
         nz = z_pos / wing_config.wing_mm,
@@ -131,8 +97,8 @@ function CalculateWingSliceData(z_pos, wing_config, cached_paths) =
         // Calculate anhedral parameters for this position
         anhedral = AnhedralAtPosition(nz, wing_config.anhedral.start_nz, wing_config.wing_mm, wing_config.anhedral.degrees),
         
-        // Get the base airfoil path using cached paths
-        base_path = GetAirfoilPath(nz, wing_config.airfoil.tip_change_nz, wing_config.airfoil.center_change_nz, cached_paths)
+        // Get the base airfoil path using pre-computed paths
+        base_path = GetAirfoilPath(nz, wing_config)
     ) object(
         nz = nz,
         current_chord_mm = current_chord_mm,
@@ -174,12 +140,11 @@ function ApplyWingTransforms(slice_data, wing_config) =
  * This combines slice data calculation and transform application
  * @param z_pos - Absolute Z position along wing span
  * @param wing_config - Wing configuration object
- * @param cached_paths - Pre-cached airfoil paths
  * @return final 3D path ready for skinning
  */
-function BuildWingProfile(z_pos, wing_config, cached_paths) =
+function BuildWingProfile(z_pos, wing_config) =
     let(
-        slice_data = CalculateWingSliceData(z_pos, wing_config, cached_paths)
+        slice_data = CalculateWingSliceData(z_pos, wing_config)
     ) ApplyWingTransforms(slice_data, wing_config);
 
 /**
@@ -356,10 +321,7 @@ function AnhedralAtPosition(nz, anhedral_start_nz, wing_mm, anhedral_degrees) =
  */
 module CreateWing(wing_config, add_connections=false, connection_length=4, wall_thickness=0.4, is_male_end=true) {
     
-    // Cache airfoil paths once at the beginning for better performance
-    cached_paths = CalculateAirfoilPaths();
-    
-    // Calculate z positions using the new exposed function
+    // Calculate z positions using the exposed function
     z_positions = CalculateWingZPositions(wing_config);
     bounds = get_current_split_bounds(wing_config.wing_mm);
     
@@ -371,13 +333,13 @@ module CreateWing(wing_config, add_connections=false, connection_length=4, wall_
                 // Main wing body
                 main_wing_profiles = [
                     for (z_pos = z_positions) 
-                        BuildWingProfile(z_pos, wing_config, cached_paths)
+                        BuildWingProfile(z_pos, wing_config)
                 ];
                 skin(main_wing_profiles, slices=0, refine=1, method="direct", sampling="segment");
                 
                 // Add male connector at end if needed
                 if (add_connections && bounds.end_z < wing_config.wing_mm && is_male_end) {
-                    end_slice_data = CalculateWingSliceData(bounds.end_z, wing_config, cached_paths);
+                    end_slice_data = CalculateWingSliceData(bounds.end_z, wing_config);
                     CreateMaleConnector(
                         end_slice_data.base_path, 
                         connection_length, 
@@ -391,7 +353,7 @@ module CreateWing(wing_config, add_connections=false, connection_length=4, wall_
             
             // Subtract female connector at start if needed
             if (add_connections && bounds.start_z > 0) {
-                start_slice_data = CalculateWingSliceData(bounds.start_z, wing_config, cached_paths);
+                start_slice_data = CalculateWingSliceData(bounds.start_z, wing_config);
                 CreateFemaleConnector(
                     start_slice_data.base_path, 
                     connection_length, 

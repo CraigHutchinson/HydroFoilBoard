@@ -142,3 +142,39 @@ function ChordLengthElliptical(normalized_z, root_chord_mm, pow_factor = 1.0) =
     let(
         chord_ratio = pow(1 - pow(normalized_z, pow_factor), 1/pow_factor)
     ) root_chord_mm * chord_ratio;
+
+
+// Function to create airfoil path from top and bottom surface lines
+function create_airfoil_path_from_surfaces(top_surface, bottom_surface) = 
+    let(
+        // Reverse bottom surface to create continuous path
+        bottom_reversed = [for (i = [len(bottom_surface) - 1 : -1 : 0]) bottom_surface[i]],
+        
+        // Combine top and bottom surfaces into single path
+        combined_path = concat(top_surface, bottom_reversed)
+    ) combined_path;
+
+// Function to modify airfoil data for 3D printing compatibility
+// This function modifies both path and slice data consistently
+function modify_airfoil_for_printing(original_slice, min_thickness = 0.3) = 
+    let(
+        // Modify each slice point
+        modified_slice = [for (iSlice = original_slice)
+            let(
+                slice_perc = iSlice.x,
+                slice_top = iSlice.y,
+                slice_bottom = iSlice.z,
+                                
+                // Get current thickness
+                current_thickness = abs(slice_top - slice_bottom),
+                
+                // Calculate thickness adjustment needed
+                thickness_adjustment = current_thickness < min_thickness ? 
+                    (min_thickness - current_thickness) / 2 : 0,
+
+                // Apply modification to upper and lower surfaces
+                modified_top = slice_top + thickness_adjustment,
+                modified_bottom = slice_bottom - thickness_adjustment
+            ) [slice_perc, modified_top, modified_bottom]
+        ]
+    ) modified_slice;
