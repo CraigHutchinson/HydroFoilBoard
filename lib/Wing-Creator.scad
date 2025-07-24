@@ -16,6 +16,25 @@
  * - Female connectors: Tapered cavities subtracted from wing starts (difference operation)
  * - Configurable wall thickness (default 0.4mm) and connection length (default 4mm)
  * - Use CalculateWingZPositions() and CalculateWingSliceData() to access z positions and slice data
+ * 
+ * ANHEDRAL COMPENSATION:
+ * - Wings with anhedral are automatically rotated to sit flat on print bed
+ * - Rotation is calculated from bottom slice anhedral angle and applied to entire wing
+ * - All internal structures (children) get the same rotation automatically
+ * 
+ * BOSL2-STYLE CHILDREN INTERFACE:
+ * - CreateWing() accepts children for internal structures using BOSL2 diff() pattern
+ * - Children are automatically rotated with anhedral compensation
+ * - Use wing_internals() for structures to add (grid, ribs)
+ * - Use wing_remove() for features to subtract (holes, voids) 
+ * - Use wing_spar_holes(array) for convenient spar hole addition
+ * 
+ * USAGE EXAMPLES:
+ * CreateWing(wing_config) {
+ *     wing_internals() { StructureGrid(...); }
+ *     wing_spar_holes(spar_holes_array);
+ *     wing_remove() { CustomVoid(); }
+ * }
  */
 
 include <BOSL2/std.scad>
@@ -284,7 +303,8 @@ function AnhedralAtPosition(nz, anhedral_start_nz, wing_mm, anhedral_degrees) =
         y_offset = (progress <= 0) ? 0 : -total_y_offset_at_tip * smooth_progress,
 
         // Current angle is the instantaneous slope angle at this position
-        angle = progress * anhedral_degrees,
+        //TODO; 4 is arbitrary as to keep the split section upright for printing a wing with default values
+        angle = progress * anhedral_degrees * 4,
     ) object(
         angle = angle,
         y_offset = y_offset,
@@ -326,39 +346,41 @@ module CreateWing(wing_config, add_connections=false, connection_length=4, wall_
     
     // Calculate anhedral compensation rotation to make wing sit flat on print bed
     // Use the bottom slice (start of bounds or z=0) to determine the rotation needed
-    bottom_slice = CalculateWingSliceData( bounds.start_z, wing_config);
+    bottom_slice = CalculateWingSliceData(bounds.start_z, wing_config);
 
     // Apply compensation rotation around x-axis to make wing sit flat
-    //TODO; We need to reorder this as the spars are in the wrong location now due to the xrot ... spars could be added a children() etc
+    // This rotation is applied to both the wing body AND any children (internal structures)
     xrot(-bottom_slice.anhedral.angle, cp = [0,0,bounds.start_z]) {
-        translate([get_root_chord_mm(wing_config) * wing_config.center_line_nx, 0, 0]) {
+
+       wing_profiles = [
+            for (z_pos = z_positions) 
+                BuildWingProfile(z_pos, wing_config)
+        ];
+
+        // Use BOSL2-style diff() pattern to allow children to participate in boolean operations
+        diff("wing_remove", "wing_keep") {
+            // Main wing body - base object (translated for center line positioning)
+            translate([get_root_chord_mm(wing_config) * wing_config.center_line_nx, 0, 0])
+                skin(wing_profiles, slices=0, refine=1, method="direct", sampling="segment");
             
-            // Always use union/difference structure, but make connectors conditional
-            difference() {
-                union() {
-                    // Main wing body
-                    main_wing_profiles = [
-                        for (z_pos = z_positions) 
-                            BuildWingProfile(z_pos, wing_config)
-                    ];
-                    skin(main_wing_profiles, slices=0, refine=1, method="direct", sampling="segment");
-                    
-                    // Add male connector at end if needed
-                    if (add_connections && bounds.end_z < wing_config.wing_mm && is_male_end) {
-                        end_slice_data = CalculateWingSliceData(bounds.end_z, wing_config);
-                        CreateMaleConnector(
-                            end_slice_data.base_path, 
-                            connection_length, 
-                            wall_thickness, 
-                            bounds.end_z, 
-                            wing_config, 
-                            end_slice_data
-                        );
-                    }
+            // Add male connector at end if needed
+            if (add_connections && bounds.end_z < wing_config.wing_mm && is_male_end) {
+                tag("wing_keep") {
+                    end_slice_data = CalculateWingSliceData(bounds.end_z, wing_config);
+                    CreateMaleConnector(
+                        end_slice_data.base_path, 
+                        connection_length, 
+                        wall_thickness, 
+                        bounds.end_z, 
+                        wing_config, 
+                        end_slice_data
+                    );
                 }
-                
-                // Subtract female connector at start if needed
-                if (add_connections && bounds.start_z > 0) {
+            }
+            
+            // Subtract female connector at start if needed
+            if (add_connections && bounds.start_z > 0) {
+                tag("wing_remove") {
                     start_slice_data = CalculateWingSliceData(bounds.start_z, wing_config);
                     CreateFemaleConnector(
                         start_slice_data.base_path, 
@@ -370,6 +392,42 @@ module CreateWing(wing_config, add_connections=false, connection_length=4, wall_
                     );
                 }
             }
+            
+            // Children can add internal structures and tag them as "wing_keep" or "wing_remove"
+            children();
+        }
+    }
+}
+
+/**
+ * Helper modules for BOSL2-style wing internal structure
+ * These provide clean syntax for adding internal structures to wings
+ */
+
+/**
+ * Add internal structures to wing (grid, ribs, etc.)
+ * Use this as a child of CreateWing to add structures that will be kept
+ */
+module wing_internals() {
+    tag("wing_keep") children();
+}
+
+/**
+ * Remove features from wing (holes, voids, etc.)  
+ * Use this as a child of CreateWing to subtract features from the wing
+ */
+module wing_remove() {
+    tag("wing_remove") children();
+}
+
+/**
+ * Add spar holes to wing using configuration array
+ * Convenience module that applies wing_remove tag automatically
+ */
+module wing_spar_holes(spar_holes_array) {
+    tag("wing_remove") {
+        for (spar = spar_holes_array) {
+            CreateSparHole(spar);
         }
     }
 }

@@ -523,52 +523,55 @@ module CreateMainWing() {
  * Uses wing configuration object for cleaner parameter passing
  */
 module CreateRearWing() {
-    CreateWing(rear_wing_config);
+    CreateWing(rear_wing_config) {
+        // Rear wing typically has simpler internal structure
+        // Could add rear wing specific spar holes here if needed
+        // wing_spar_holes(rear_spar_holes); // if defined
+    };
 }
 
-// MAIN WING MODULE
+// MAIN WING MODULE  
 module main_wing() {
-    difference() {
-        difference() {
-            CreateWing(main_wing_config, add_connections=false);
-
-            if (add_inner_grid) {
-                union() {
-                    difference() {
-                        difference() {
-                            if (grid_mode == 1) {
-                                StructureGrid(main_wing_config.wing_mm, get_root_chord_mm(main_wing_config), grid_size_factor);
-                            } else {
-                                StructureSparGrid(main_wing_config.wing_mm, get_root_chord_mm(main_wing_config), grid_size_factor, spar_num, spar_offset,
-                                                  rib_num, rib_offset);
+    CreateWing(main_wing_config, add_connections=false) {
+        // Internal structures - automatically get anhedral compensation rotation
+        
+        if (add_inner_grid) {
+            wing_internals() {
+                difference() {
+                    // Add grid structure
+                    if (grid_mode == 1) {
+                        StructureGrid(main_wing_config.wing_mm, get_root_chord_mm(main_wing_config), grid_size_factor);
+                    } else {
+                        StructureSparGrid(main_wing_config.wing_mm, get_root_chord_mm(main_wing_config), grid_size_factor, spar_num, spar_offset,
+                                          rib_num, rib_offset);
+                    }
+                    
+                    // Remove voids from grid
+                    union() {
+                        if (grid_mode == 1) {
+                            if (create_rib_voids) {
+                                CreateRibVoids();
                             }
-                            union() {
-                                if (grid_mode == 1) {
-                                    if (create_rib_voids) {
-                                        CreateRibVoids();
-                                    }
-                                } else {
-                                    if (create_rib_voids) {
-                                        CreateRibVoids2();
-                                    }
-                                }
-                                union() {
-                                    for (spar = spar_holes) {
-                                        CreateSparVoid(spar);
-                                    }
-                                }
+                        } else {
+                            if (create_rib_voids) {
+                                CreateRibVoids2();
                             }
                         }
+                        
+                        // Remove spar void spaces from grid
+                        for (spar = spar_holes) {
+                            CreateSparVoid(spar);
+                        }
+                        
+                        // Remove grid void
                         CreateGridVoid();
                     }
                 }
             }
         }
-        union() {
-            for (spar = spar_holes) {
-                CreateSparHole(spar);
-            }
-        }
+        
+        // Spar holes - cleaner syntax using helper module
+        wing_spar_holes(spar_holes);
     }
 }
 
