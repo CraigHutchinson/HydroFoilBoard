@@ -278,7 +278,7 @@ function AnhedralAtPosition(nz, anhedral_start_nz, wing_mm, anhedral_degrees) =
         total_y_offset_at_tip = anhedral_span_mm * tan(anhedral_degrees),
                 
         // Current angle is the instantaneous slope angle at this position
-        angle = progress * anhedral_degrees * 2,
+        angle = progress * anhedral_degrees * 3,
         
         // Y-offset follows the arc equation: y = (total_offset) * (3*t² - 2*t³)
         // This creates a smooth S-curve that starts with zero slope and ends at the correct angle
@@ -329,6 +329,7 @@ module CreateWing(wing_config, add_connections=false, connection_length=4, wall_
 
     // Apply compensation rotation around x-axis to make wing sit flat
     //TODO; We need to reorder this as the spars are in the wrong location now
+    //TODO: The wing is offset in Z so we rotate around the wrong point for the split too!
     xrot(-bottom_slice_data.anhedral.angle) {
         translate([get_root_chord_mm(wing_config) * wing_config.center_line_nx, 0, 0]) {
             
