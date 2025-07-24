@@ -191,7 +191,7 @@ Rear_Wing_Anhedral_Start_At_Percentage = 60; // [0:100]
 
 // Rear Wing Washout Settings
 // Rear wing degrees of washout (0 = none) - washout adds twist for stability
-Rear_Wing_Washout_Deg = 0.5; // [0:0.1:5]
+Rear_Wing_Washout_Deg = 0.0; // [0:0.1:5]
 // Where rear wing washout starts (mm from root)
 Rear_Wing_Washout_Start = 30 * Build_Scale; // [0:5:200]
 // Rear wing washout pivot point (percentage from LE)
