@@ -277,13 +277,14 @@ function AnhedralAtPosition(nz, anhedral_start_nz, wing_mm, anhedral_degrees) =
         // So total_y_offset = anhedral_span * tan(final_angle)
         total_y_offset_at_tip = anhedral_span_mm * tan(anhedral_degrees),
                 
-        // Current angle is the instantaneous slope angle at this position
-        angle = progress * anhedral_degrees * 3,
         
         // Y-offset follows the arc equation: y = (total_offset) * (3*t² - 2*t³)
         // This creates a smooth S-curve that starts with zero slope and ends at the correct angle
         smooth_progress = 3 * progress * progress - 2 * progress * progress * progress,
-        y_offset = (progress <= 0) ? 0 : -total_y_offset_at_tip * smooth_progress
+        y_offset = (progress <= 0) ? 0 : -total_y_offset_at_tip * smooth_progress,
+
+        // Current angle is the instantaneous slope angle at this position
+        angle = progress * anhedral_degrees,
     ) object(
         angle = angle,
         y_offset = y_offset,
@@ -325,12 +326,11 @@ module CreateWing(wing_config, add_connections=false, connection_length=4, wall_
     
     // Calculate anhedral compensation rotation to make wing sit flat on print bed
     // Use the bottom slice (start of bounds or z=0) to determine the rotation needed
-    bottom_slice_data = CalculateWingSliceData( bounds.start_z, wing_config);
+    bottom_slice = CalculateWingSliceData( bounds.start_z, wing_config);
 
     // Apply compensation rotation around x-axis to make wing sit flat
-    //TODO; We need to reorder this as the spars are in the wrong location now
-    //TODO: The wing is offset in Z so we rotate around the wrong point for the split too!
-    xrot(-bottom_slice_data.anhedral.angle) {
+    //TODO; We need to reorder this as the spars are in the wrong location now due to the xrot ... spars could be added a children() etc
+    xrot(-bottom_slice.anhedral.angle, cp = [0,0,bounds.start_z]) {
         translate([get_root_chord_mm(wing_config) * wing_config.center_line_nx, 0, 0]) {
             
             // Always use union/difference structure, but make connectors conditional
