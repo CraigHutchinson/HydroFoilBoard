@@ -843,16 +843,16 @@ module visualize_wing_area_calculation(wing_config) {
     step_size = wing_config.wing_mm / steps;
     
     // Apply the same translation as CreateWing uses
-    translate([get_root_chord_mm(wing_config) * wing_config.center_line_nx, 0, 0]) {
+   // translate([get_root_chord_mm(wing_config) * wing_config.center_line_nx, 0, 0]) {
         for (i = [0:steps-1]) {
             position = i * step_size;
             chord = WingSliceChordLength(position / wing_config.wing_mm, wing_config.chord_profile);
             
             color([1, 0.5, 0, 0.3]) // Semi-transparent orange
-            translate([-wing_config.center_line_nx * chord, 0, position])
+            //translate([-wing_config.center_line_nx * chord, 0, position])
                 cube([chord, 0.5, step_size], anchor=BOTTOM+LEFT);
         }
-    }
+   // }
 }
 
 // Function to calculate actual wing area by numerical integration

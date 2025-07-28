@@ -134,8 +134,7 @@ function CalculateWingSliceData(z_pos, wing_config) =
 function ApplyWingTransforms(slice_data, wing_config) =
     let(
         // Apply scaling and translation using BOSL2 transforms
-        scaled_path = move([-wing_config.center_line_nx * slice_data.current_chord_mm, 0], 
-                        p=scale([slice_data.current_chord_mm, slice_data.current_chord_mm] / 100, p=slice_data.base_path)),
+        scaled_path = scale([slice_data.current_chord_mm, slice_data.current_chord_mm], p=slice_data.base_path),
         
         // Apply washout rotation if needed (using normalized positions)
         washout_path = (wing_config.washout.degrees > 0 && slice_data.nz > wing_config.washout.start_nz) ?
@@ -149,8 +148,10 @@ function ApplyWingTransforms(slice_data, wing_config) =
         rotated_path_3d = (slice_data.anhedral.angle != 0) ? 
             xrot(slice_data.anhedral.angle, p=path_3d ) : path_3d,
         
-        // Apply anhedral y-offset using BOSL2 transform
-        final_path =  move([0, slice_data.anhedral.y_offset, slice_data.nz * wing_config.wing_mm], p=rotated_path_3d)
+        // Apply anhedral y-offset using BOSL2 transform and wing shape-x
+        final_path = move([wing_config.center_line_nx * (wing_config.chord_profile.root_chord_mm - slice_data.current_chord_mm)
+            , slice_data.anhedral.y_offset
+            , slice_data.nz * wing_config.wing_mm], p=rotated_path_3d)
     ) final_path;
 
 /**
@@ -310,25 +311,7 @@ function AnhedralAtPosition(nz, anhedral_start_nz, wing_mm, anhedral_degrees) =
         y_offset = y_offset,
         progress = progress
     );
-    
-/**
- * Parameterized wing creation module
- * Generates a complete wing using BOSL2 skin() function
- * @param wing_sections - Number of wing sections (more = higher resolution)
- * @param wing_mm - Wing half-span length in mm
- * @param root_chord_mm - Root chord length in mm
- * @param tip_chord_mm - Tip chord length in mm (for trapezoidal)
- * @param wing_mode - Wing shape mode (1=trapezoidal, 2=elliptic)
- * @param elliptic_pow - Elliptic distribution power factor (for elliptic)
- * @param center_line_nx - Percentage from leading edge for wing center line
- * @param washout_deg - Degrees of washout (0 = none)
- * @param washout_start - Where washout starts (mm from root)
- * @param washout_pivot_perc - Washout pivot point (percentage from LE)
- * @param anhedral_degrees - Maximum anhedral angle at wing tip
- * @param anhedral_start_nz - Where anhedral starts (percentage from root)
- * @param tip_change_nz - Percentage where tip airfoil starts
- * @param center_change_nz - Percentage where center airfoil starts
- */
+ 
 /**
  * Create a wing from a configuration object
  * This is the new unified wing creation function that takes a wing configuration object
