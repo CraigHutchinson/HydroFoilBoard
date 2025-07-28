@@ -404,28 +404,25 @@ function get_airfoil_surface(surface_anchor=CENTER) =
     af_root.mid; // Default to mean camber for CENTER or any other value
 
 // Function to calculate the ideal spar offset based on airfoil geometry
-// perc: Percentage from leading edge (0-100)  
+// nx: Normalized X from leading edge (0-1)  
 // wing_config: Wing configuration object containing airfoil data
 // anchor: BOSL2 anchor constant (TOP, BOTTOM, CENTER) for airfoil surface selection
 // Returns the y-offset at that chord position for optimal structural positioning
-function calculate_spar_offset_at_chord_position(perc, wing_config, anchor=CENTER) = 
+function calculate_spar_offset_at_chord_position(nx, wing_config, anchor=CENTER) = 
     let(
-        // Since data is sorted by x-coordinate, find the first point >= target
-        target_x = perc,
-        
         // Get the appropriate airfoil line data using anchor
         af_vec = get_airfoil_surface(anchor),
         
         // Simple linear search for the closest point (efficient for small datasets)
         closest_index = 
-            target_x <= af_vec[0][0] ? 0 :
-            target_x >= af_vec[len(af_vec)-1][0] ? len(af_vec)-1 :
-            // Find first point where x >= target_x
+            nx <= af_vec[0][0] ? 0 :
+            nx >= af_vec[len(af_vec)-1][0] ? len(af_vec)-1 :
+            // Find first point where x >= nx
             [for (i = [0 : len(af_vec) - 1]) 
-                if (af_vec[i][0] >= target_x) i][0],
+                if (af_vec[i][0] >= nx) i][0],
         
         // Get the y-coordinate at that position
-        y_offset = af_vec[closest_index][1]
+        y_offset = af_vec[closest_index][1] * get_root_chord_mm(wing_config) // Scale to mm from percentage
     ) y_offset;
 
 // Helper function to create a chord profile object
@@ -475,7 +472,7 @@ function new_spar(perc, diam, length, offset, anchor=undef) = object(
     anchor = anchor, // Anchor for airfoil surface selection
     hole_diameter = diam * Build_Scale,
     length = length * Build_Scale,
-    offset = ((anchor != undef ? calculate_spar_offset_at_chord_position(perc, main_wing_config, anchor) * (WingSliceChordLength(0, main_wing_config.chord_profile)/100) : 0) + offset) * Build_Scale
+    offset = ((anchor != undef ? calculate_spar_offset_at_chord_position(perc/100, main_wing_config, anchor) : 0) + offset) * Build_Scale
 );
 
 // Spar hole configurations
@@ -806,30 +803,6 @@ else
 }
 
 // CARBON SPAR SYSTEM
-// Function to calculate the ideal spar offset based on mean camber line
-// perc: Percentage from leading edge (0-100)
-// wing_config: Wing configuration object containing airfoil data
-// anchor: BOSL2 anchor constant (TOP, BOTTOM, or CENTER for mean camber)
-// Returns the y-offset at that chord position for optimal structural positioning
-function calculate_spar_offset_at_chord_position(perc, wing_config, anchor=CENTER) = 
-    let(
-        // Since data is sorted by x-coordinate, find the first point >= target
-        target_x = perc,
-        
-        // Get the appropriate airfoil line data using helper function
-        af_vec = get_airfoil_surface(anchor),
-        
-        // Simple linear search for the closest point (efficient for small datasets)
-        closest_index = 
-            target_x <= af_vec[0][0] ? 0 :
-            target_x >= af_vec[len(af_vec)-1][0] ? len(af_vec)-1 :
-            // Find first point where x >= target_x
-            [for (i = [0 : len(af_vec) - 1]) 
-                if (af_vec[i][0] >= target_x) i][0],
-        
-        // Get the y-coordinate at that position
-        y_offset = af_vec[closest_index][1]
-    ) y_offset;
 
 //Calculate the 2d projection of the wing which defines its area
 // Note: Use this module to render and measure the wing area
