@@ -83,12 +83,12 @@ module Fuselage() {
         if (spar_through_fuselage) {
             for (spar = spar_holes) {
                 translate([
-                    (spar_hole_perc(spar) / 100) * Main_Wing_Root_Chord_MM,
-                    spar_hole_offset(spar),
+                    (spar.perc / 100) * Main_Wing_Root_Chord_MM,
+                    spar.offset,
                     0
                 ]) {
-                    cylinder(d=spar_hole_size(spar) + (spar_hole_void_clearance * 2), 
-                                h=spar_hole_length(spar) * 2 * Build_Scale, center=true);
+                    cylinder(d=spar.hole_diameter + (spar_hole_void_clearance * 2), 
+                                h=spar.length * 2 * Build_Scale, center=true);
                     
                 }
             }

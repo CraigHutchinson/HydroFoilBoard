@@ -469,18 +469,14 @@ function wing_config_summary(wing_config) = object(
 // length: Length of the spar in mm
 // offset: Manual offset override
 // anchor: BOSL2 anchor constant (TOP, BOTTOM, CENTER) for airfoil positioning
-function new_spar(perc, diam, length, offset, anchor=undef) = [
-    perc,
-    diam * Build_Scale,
-    length * Build_Scale,
-    ((anchor != undef ? calculate_spar_offset_at_chord_position(perc, main_wing_config, anchor) * (WingSliceChordLength(0, main_wing_config.chord_profile)/100) : 0) + offset) * Build_Scale
-];
-
-// Spar accessor functions
-function spar_hole_perc(spar) = spar[0];
-function spar_hole_size(spar) = spar[1];
-function spar_hole_length(spar) = spar[2];
-function spar_hole_offset(spar) = spar[3];
+function new_spar(perc, diam, length, offset, anchor=undef) = object(
+    nx = perc/100,
+    diameter = undef, //TODO: We should have the diameter here, but it is not used in the spar hole creator
+    anchor = anchor, // Anchor for airfoil surface selection
+    hole_diameter = diam * Build_Scale,
+    length = length * Build_Scale,
+    offset = ((anchor != undef ? calculate_spar_offset_at_chord_position(perc, main_wing_config, anchor) * (WingSliceChordLength(0, main_wing_config.chord_profile)/100) : 0) + offset) * Build_Scale
+);
 
 // Spar hole configurations
 // Uses calculated offsets based on airfoil geometry for optimal structural positioning
@@ -510,13 +506,6 @@ include <lib/Rib-Void-Creator.scad>
 include <lib/Spar-Hole.scad>
 include <lib/Wing-Creator.scad>
 
-/**
- * Main wing creation module using object configuration
- * Uses wing configuration object for cleaner parameter passing
- */
-module CreateMainWing() {
-    CreateWing(main_wing_config);
-}
 
 /**
  * Rear wing creation module using object configuration
@@ -532,7 +521,9 @@ module CreateRearWing() {
 
 // MAIN WING MODULE  
 module main_wing() {
-    CreateWing(main_wing_config, add_connections=false) {
+   // translate([get_root_chord_mm(wing_config) * wing_config.center_line_nx, 0, 0])
+                
+    CreateWing(main_wing_config, add_connections=true) {
         // Internal structures - automatically get anhedral compensation rotation
         
         if (add_inner_grid) {
@@ -571,7 +562,7 @@ module main_wing() {
         }
         
         // Spar holes - cleaner syntax using helper module
-        wing_spar_holes(spar_holes);
+      #  wing_spar_holes(spar_holes);
     }
 }
 
@@ -705,7 +696,7 @@ if(Build_CalibrationParts) {
         intersection() {
             difference() 
             {
-                CreateMainWing();
+                CreateWing(main_wing_config);
                 
                  if (Spar_Calibration_Large_Hole_ResultIndex != undef) {
                     

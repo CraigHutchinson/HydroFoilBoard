@@ -360,8 +360,7 @@ module CreateWing(wing_config, add_connections=false, connection_length=4, wall_
         // Use BOSL2-style diff() pattern to allow children to participate in boolean operations
         diff("wing_remove", "wing_keep") {
             // Main wing body - base object (translated for center line positioning)
-            translate([get_root_chord_mm(wing_config) * wing_config.center_line_nx, 0, 0])
-                skin(wing_profiles, slices=0, refine=1, method="direct", sampling="segment");
+            skin(wing_profiles, slices=0, refine=1, method="direct", sampling="segment");
             
             // Add male connector at end if needed
             if (add_connections && bounds.end_z < wing_config.wing_mm && is_male_end) {

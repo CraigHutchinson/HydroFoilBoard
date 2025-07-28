@@ -159,22 +159,25 @@ function create_airfoil_path_from_surfaces(top_surface, bottom_surface) =
 function modify_airfoil_for_printing(original_slice, min_thickness = 0.3) = 
     let(
         // Modify each slice point
-        modified_slice = [for (iSlice = original_slice)
+        modified_slice = [for (slice = original_slice)
             let(
-                slice_perc = iSlice.x,
-                slice_top = iSlice.y,
-                slice_bottom = iSlice.z,
+                nx = slice.x/100,
+                ntop = slice.y/100,
+                nbottom = slice.z/100,
                                 
                 // Get current thickness
-                current_thickness = abs(slice_top - slice_bottom),
-                
+                current_thickness = abs(ntop - nbottom),
+
                 // Calculate thickness adjustment needed
-                thickness_adjustment = current_thickness < min_thickness ? 
-                    (min_thickness - current_thickness) / 2 : 0,
+                //WIP: Realisation that min_thickess is aplied to the unscaled areofoil.. making thi snormalized 0-1 changes this logic as we realise
+                // its a little wrong as this part varies based on scale. i.e. We need to find a way to efficiently apply thickness adjustment
+                // to the scaled airfoil
+                thickness_adjustment = current_thickness < min_thickness/100 ? 
+                    (min_thickness/100 - current_thickness) / 2 : 0,
 
                 // Apply modification to upper and lower surfaces
-                modified_top = slice_top + thickness_adjustment,
-                modified_bottom = slice_bottom - thickness_adjustment
-            ) [slice_perc, modified_top, modified_bottom]
+                modified_top = ntop + thickness_adjustment,
+                modified_bottom = nbottom - thickness_adjustment
+            ) [nx, modified_top, modified_bottom]
         ]
     ) modified_slice;
