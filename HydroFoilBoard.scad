@@ -124,7 +124,7 @@ center_airfoil_change_perc = 100; // [0:100]
 tip_airfoil_change_perc = 100; // [0:100]
 
 // Create airfoil object from E818 airfoil data
-af_root = create_airfoil_object(airfoil_E818_slice(), Trailing_Edge_Thickness);
+ af_root = create_airfoil_object(airfoil_E818_slice(), Trailing_Edge_Thickness);
 
 //Legacy support
 af_vec_path_root = af_root.path;
@@ -361,7 +361,7 @@ function get_airfoil_path(wing_config, path_type="root", preview=false) =
 function get_airfoil_surface(surface_anchor=CENTER) = 
     surface_anchor == TOP ? af_root.top :
     surface_anchor == BOTTOM ? af_root.bottom :
-    af_root.mid; // Default to mean camber for CENTER or any other value
+    af_root.camber; // Default to mean camber for CENTER or any other value
 
 // Function to calculate the ideal spar offset based on airfoil geometry
 // nx: Normalized X from leading edge (0-1)  
@@ -372,37 +372,18 @@ function calculate_spar_offset_at_chord_position(nx, wing_config, anchor=CENTER)
     let(
         // Get the appropriate airfoil line data using anchor
         af_vec = get_airfoil_surface(anchor),
-        
+      //  _ = echo("af_vec", af_vec, "nx", nx, "anchor", anchor),
         // Simple linear search for the closest point (efficient for small datasets)
         closest_index = 
-            nx <= af_vec[0][0] ? 0 :
-            nx >= af_vec[len(af_vec)-1][0] ? len(af_vec)-1 :
+            nx <= af_vec[0].x ? 0 :
+            nx >= af_vec[len(af_vec)-1].x ? len(af_vec)-1 :
             // Find first point where x >= nx
             [for (i = [0 : len(af_vec) - 1]) 
-                if (af_vec[i][0] >= nx) i][0],
+                if (af_vec[i].x >= nx) i][0],
         
         // Get the y-coordinate at that position
-        y_offset = af_vec[closest_index][1] * get_root_chord_mm(wing_config) // Scale to mm from percentage
+        y_offset = af_vec[closest_index].y * get_root_chord_mm(wing_config) // Scale to mm from percentage
     ) y_offset;
-
-// Helper function to create a chord profile object
-function create_chord_profile(root_chord_mm, tip_chord_mm, wing_mode, elliptic_pow) = object(
-    root_chord_mm = root_chord_mm,
-    tip_chord_mm = tip_chord_mm,
-    wing_mode = wing_mode,
-    elliptic_pow = elliptic_pow
-);
-
-// Helper function to create airfoil paths object
-function create_airfoil_paths() = object(
-    root = af_root.path,
-    mid = af_root.path,
-    tip = af_root.path,
-    // Pre-resampled paths for preview mode
-    root_preview = af_root.path_preview,
-    mid_preview = af_root.path_preview,
-    tip_preview = af_root.path_preview
-);
 
 // Helper function to create a wing config summary for debug printing (excludes bulky path data)
 function wing_config_summary(wing_config) = object(
@@ -627,7 +608,6 @@ echo("========================================");
     echo("ERROR: add_inner_grid needs to be true for spar_hole to be true");
 }*/
 
-
 if ( Main_Wing_Area_DoAnalysis )
 {
     visualize_actual_wing_area(main_wing_config);
@@ -719,14 +699,14 @@ if(Build_TestParts) {
     Main_Wing_Slot_EntryLength=Main_Wing_Slot_Length+0.8; // Length of the entry slot for dovetail
 
     xdistribute(spacing=Main_Wing_Slot_Width+6){
-    cuboid([Main_Wing_Slot_Width+4,Main_Wing_Slot_Length+Main_Wing_Slot_EntryLength+4,4], anchor=BOT)
-        attach(TOP,BOT,align=BACK,inset=2)
-        dovetail("male", slide=Main_Wing_Slot_Length, width=Main_Wing_Slot_Width, height=Main_Wing_Slot_Height, slope=Main_Wing_Slot_Slope, round=true, radius=Main_Wing_Slot_Radius, taper=Main_Wing_Slot_Taper);
-    diff()
-        cuboid([Main_Wing_Slot_Width+4,Main_Wing_Slot_Length+Main_Wing_Slot_EntryLength+4,Main_Wing_Slot_Height+4], anchor=BOT)
-        attach(TOP,BOT,align=BACK,inside=true,inset=2)
-            tag("remove") dovetail("female", slide=Main_Wing_Slot_Length, width=Main_Wing_Slot_Width, height=Main_Wing_Slot_Height, slope=Main_Wing_Slot_Slope, entry_slot_length=Main_Wing_Slot_EntryLength, round=true, radius=Main_Wing_Slot_Radius, taper=Main_Wing_Slot_Taper);
-}
+        cuboid([Main_Wing_Slot_Width+4,Main_Wing_Slot_Length+Main_Wing_Slot_EntryLength+4,4], anchor=BOT)
+            attach(TOP,BOT,align=BACK,inset=2)
+            dovetail("male", slide=Main_Wing_Slot_Length, width=Main_Wing_Slot_Width, height=Main_Wing_Slot_Height, slope=Main_Wing_Slot_Slope, round=true, radius=Main_Wing_Slot_Radius, taper=Main_Wing_Slot_Taper);
+        diff()
+            cuboid([Main_Wing_Slot_Width+4,Main_Wing_Slot_Length+Main_Wing_Slot_EntryLength+4,Main_Wing_Slot_Height+4], anchor=BOT)
+            attach(TOP,BOT,align=BACK,inside=true,inset=2)
+                tag("remove") dovetail("female", slide=Main_Wing_Slot_Length, width=Main_Wing_Slot_Width, height=Main_Wing_Slot_Height, slope=Main_Wing_Slot_Slope, entry_slot_length=Main_Wing_Slot_EntryLength, round=true, radius=Main_Wing_Slot_Radius, taper=Main_Wing_Slot_Taper);
+    }
 
 /*
   left(Main_Wing_Average_Chord){  

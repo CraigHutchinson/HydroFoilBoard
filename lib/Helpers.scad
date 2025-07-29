@@ -157,21 +157,19 @@ function create_airfoil_path_from_slice(slice) =
         combined_path = concat(af_top, bottom_reversed)
     ) combined_path;
 
-airfoil_normalize_scale = 100; // Default scale for airfoil normalization
-
 function normalize_airfoil(original_slice) = 
      [for (slice = original_slice)
             let(
-                nx = slice.x/airfoil_normalize_scale,
-                ntop = slice.y/airfoil_normalize_scale,
-                nbottom = slice.z/airfoil_normalize_scale,
+                nx = slice.x/100,
+                ntop = slice.y/100,
+                nbottom = slice.z/100,
             ) [nx, ntop, nbottom]
         ];
 
 function get_airfoil_path(airfoil, reference_chord_mm = 100) =
     let(
-        reference_scale = reference_chord_mm / airfoil_normalize_scale, // Scale factor for reference chord
-        base_path = $preview 
+        reference_scale = reference_chord_mm, // Scale factor for reference chord
+        base_path = true || $preview 
             ? airfoil.path 
             : let(
                     // Modify the airfoil slice for printing, ensuring correct trailing edge thickness
@@ -196,7 +194,7 @@ function modify_airfoil_slice_for_printing(normalized_slice, min_thickness_mm = 
                 // Get current thickness
                 current_thickness = abs(ntop - nbottom),
 
-                scaled_min_thickness = min_thickness_mm / (reference_chord_mm/airfoil_normalize_scale),
+                scaled_min_thickness = min_thickness_mm / reference_chord_mm,
 
                 // Calculate thickness adjustment needed
                 thickness_adjustment = current_thickness < scaled_min_thickness ? 
@@ -205,7 +203,7 @@ function modify_airfoil_slice_for_printing(normalized_slice, min_thickness_mm = 
                 // Apply modification to upper and lower surfaces
                 modified_top = ntop + thickness_adjustment,
                 modified_bottom = nbottom - thickness_adjustment
-            ) [nx, ntop, nbottom]
+            ) [nx, modified_top, modified_bottom]
         ];
 
 
@@ -235,7 +233,7 @@ function create_airfoil_object(airfoil_slice_original, trailing_edge_thickness, 
 
         // Modify airfoil slice data for 3D printing
         // NOTE: We only scale the source airfoil on preview but scale on slice-by-slice for render
-        af_modified_slice = false && $preview 
+        af_modified_slice = true && $preview 
             ? modify_airfoil_slice_for_printing(af_nslice, trailing_edge_thickness, reference_chord_mm) 
             : af_nslice,
         
@@ -254,10 +252,10 @@ function create_airfoil_object(airfoil_slice_original, trailing_edge_thickness, 
         
         top = af_top,
         bottom = af_bottom,
-        mid = af_camber,
+        camber = af_camber,
 
         // Pre-resampled paths for preview mode
-        path = false && $preview 
+        path = true && $preview 
             ? resample_path(af_path, n=30, keep_corners=10, closed=true) 
             : af_path
     );
