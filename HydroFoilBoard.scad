@@ -404,20 +404,26 @@ function new_spar(percx, diam, length, offset, anchor=undef, fixedx=undef) = obj
 // Spar hole configurations
 // Uses calculated offsets based on airfoil geometry for optimal structural positioning
 spar_holes = [
+    // Full-span Spars go through the fuselage as one piece
+    new_spar(undef, fixedx = 45, Spar_Hole_Large_Diameter, 400, 0.5),
+    new_spar(undef, fixedx = 80, Spar_Hole_Large_Diameter, 400, 1.5),
+    new_spar(undef, fixedx = 115, Spar_Hole_Large_Diameter, 400,2.5),
+
     // Full-span Spars go through, the wing but are split at the center line (May optionally be glued into the wing structure)
     new_spar(10, Spar_Hole_Small_Diameter, 300, 0.5, CENTER),
     new_spar(15, Spar_Hole_Small_Diameter, 250, -3.5, TOP), new_spar(15, Spar_Hole_Small_Diameter, 250, 3.25, BOTTOM),
     new_spar(35, Spar_Hole_Small_Diameter, 300, -3.5, TOP), new_spar(35, Spar_Hole_Small_Diameter, 450, 3, BOTTOM),
     new_spar(55, Spar_Hole_Small_Diameter, 300, -3, TOP), new_spar(55, Spar_Hole_Small_Diameter, 450, 3, BOTTOM),
-    new_spar(75, Spar_Hole_Small_Diameter, 400, 2, BOTTOM),
-
-    // Full-span Spars go through the fuselage as one piece
-    new_spar(undef, fixedx = 45, Spar_Hole_Large_Diameter, 400, 0.5),
-    new_spar(undef, fixedx = 80, Spar_Hole_Large_Diameter, 400, 1.5),
-    new_spar(undef, fixedx = 115, Spar_Hole_Large_Diameter, 400,2.5)
+    new_spar(75, Spar_Hole_Small_Diameter, 400, 2, BOTTOM)
 ];
 
 spar_hole_void_clearance = 0.0;  // Clearance for spar to grid interface (at least double extrusion width)
+
+// Required position for consistency of fuselage fit
+assert( spar_holes[0].x == 45, "Spar hole 0 should be at fixed x=45mm" );
+assert( spar_holes[1].x == 80, "Spar hole 1 should be at fixed x=80mm" );
+assert( spar_holes[2].x == 115, "Spar hole 2 should be at fixed x=115mm" );
+
 
 // LIBRARY INCLUDES
 

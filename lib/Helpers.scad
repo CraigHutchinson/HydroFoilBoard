@@ -169,7 +169,7 @@ function normalize_airfoil(original_slice) =
 function get_airfoil_path(airfoil, reference_chord_mm = 100) =
     let(
         reference_scale = reference_chord_mm, // Scale factor for reference chord
-        base_path = true || $preview 
+        base_path = $preview 
             ? airfoil.path 
             : let(
                     // Modify the airfoil slice for printing, ensuring correct trailing edge thickness
@@ -194,7 +194,7 @@ function modify_airfoil_slice_for_printing(normalized_slice, min_thickness_mm = 
                 // Get current thickness
                 current_thickness = abs(ntop - nbottom),
 
-                scaled_min_thickness = min_thickness_mm / reference_chord_mm,
+                scaled_min_thickness = min_thickness_mm / max(reference_chord_mm,0.1), //< NOTE: Clampo to avoid division by zero at wing tip
 
                 // Calculate thickness adjustment needed
                 thickness_adjustment = current_thickness < scaled_min_thickness ? 
