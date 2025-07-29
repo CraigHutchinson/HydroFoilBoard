@@ -123,45 +123,13 @@ center_airfoil_change_perc = 100; // [0:100]
 // Where to change to tip airfoil (100 = off)
 tip_airfoil_change_perc = 100; // [0:100]
 
-// Helper function to create a complete airfoil object from original airfoil data
-// airfoil_slice_original: Original airfoil slice data from airfoil library
-// trailing_edge_thickness: Minimum trailing edge thickness for 3D printing
-// Returns an object containing all airfoil components (top, bottom, mid, path, preview paths)
-function create_airfoil_object(airfoil_slice_original, trailing_edge_thickness) = 
-    let(
-        // Modify airfoil slice data for 3D printing
-        af_slice = modify_airfoil_for_printing(airfoil_slice_original, trailing_edge_thickness),
-        
-        // Extract surface lines from modified slice data
-        af_top = [for (i = af_slice) [i.x, i.y]],       // Top surface line
-        af_bottom = [for (i = af_slice) [i.x, i.z]],    // Bottom surface line
-        
-        // Mean camber line - midline halfway between top and bottom surfaces
-        af_mid = [for (i = af_slice) [i.x, (i.y + i.z) / 2]],
-        
-        // Create airfoil path from modified surface data
-        af_path = create_airfoil_path_from_surfaces(af_top, af_bottom)
-    ) object(
-        top = af_top,
-        bottom = af_bottom,
-        mid = af_mid,
-        path = af_path,
-        // Pre-resampled paths for preview mode
-        path_preview = resample_path(af_path, n=30, keep_corners=10, closed=true)
-    );
-
 // Create airfoil object from E818 airfoil data
 af_root = create_airfoil_object(airfoil_E818_slice(), Trailing_Edge_Thickness);
 
-// Legacy variables for backward compatibility (these can be removed once all references are updated)
-af_vec_root_slice_original = airfoil_E818_slice();
-af_vec_root_slice = modify_airfoil_for_printing(af_vec_root_slice_original, Trailing_Edge_Thickness);
-af_vec_root_top = af_root.top;
-af_vec_root_bottom = af_root.bottom;
+//Legacy support
 af_vec_path_root = af_root.path;
 af_vec_path_mid = af_root.path;
 af_vec_path_tip = af_root.path;
-af_vec_mean_camber = af_root.mid;
 
 // Airfoil bounding box
 af_bbox = airfoil_E818_range();
@@ -221,13 +189,9 @@ main_wing_config = object(
         center_change_nz = center_airfoil_change_perc/100,
         // Pre-computed airfoil paths for performance
         paths = object(
-            root = af_root.path,
-            mid = af_root.path,
-            tip = af_root.path,
-            // Pre-resampled paths for preview mode
-            root_preview = af_root.path_preview,
-            mid_preview = af_root.path_preview,
-            tip_preview = af_root.path_preview
+            root = af_root,
+            mid = af_root,
+            tip = af_root,
         )
     ),
     
@@ -312,13 +276,9 @@ rear_wing_config = object(
         center_change_nz = center_airfoil_change_perc/100,
         // Pre-computed airfoil paths for performance
         paths = object(
-            root = af_root.path,
-            mid = af_root.path,
-            tip = af_root.path,
-            // Pre-resampled paths for preview mode
-            root_preview = af_root.path_preview,
-            mid_preview = af_root.path_preview,
-            tip_preview = af_root.path_preview
+            root = af_root,
+            mid = af_root,
+            tip = af_root,
         )
     ),
     
@@ -461,18 +421,18 @@ function wing_config_summary(wing_config) = object(
 );
 
 // Function to create a new spar configuration using BOSL2 anchor constants
-// perc: Percentage from leading edge
+// percx: Percentage from leading edge
 // diam: Size of the spar hole  
 // length: Length of the spar in mm
 // offset: Manual offset override
 // anchor: BOSL2 anchor constant (TOP, BOTTOM, CENTER) for airfoil positioning
-function new_spar(perc, diam, length, offset, anchor=undef) = object(
-    nx = perc/100,
+function new_spar(percx, diam, length, offset, anchor=undef, fixedx=undef) = object(
+    x = ((fixedx == undef) ? percx/100 * get_root_chord_mm(main_wing_config): fixedx) * Build_Scale, // X position based on chord percentage or fixed x
     diameter = undef, //TODO: We should have the diameter here, but it is not used in the spar hole creator
     anchor = anchor, // Anchor for airfoil surface selection
     hole_diameter = diam * Build_Scale,
     length = length * Build_Scale,
-    offset = ((anchor != undef ? calculate_spar_offset_at_chord_position(perc/100, main_wing_config, anchor) : 0) + offset) * Build_Scale
+    offset = ((anchor != undef ? calculate_spar_offset_at_chord_position(percx/100, main_wing_config, anchor) : 0) + offset) * Build_Scale
 );
 
 // Spar hole configurations
@@ -480,25 +440,25 @@ function new_spar(perc, diam, length, offset, anchor=undef) = object(
 spar_holes = [
     // Full-span Spars go through, the wing but are split at the center line (May optionally be glued into the wing structure)
     new_spar(10, Spar_Hole_Small_Diameter, 300, 0.5, CENTER),
-    new_spar(15, Spar_Hole_Small_Diameter, 250, -2.5, TOP), new_spar(15, Spar_Hole_Small_Diameter, 250, 3.25, BOTTOM),
-    new_spar(35, Spar_Hole_Small_Diameter, 300, -2.5, TOP), new_spar(35, Spar_Hole_Small_Diameter, 450, 3, BOTTOM),
+    new_spar(15, Spar_Hole_Small_Diameter, 250, -3.5, TOP), new_spar(15, Spar_Hole_Small_Diameter, 250, 3.25, BOTTOM),
+    new_spar(35, Spar_Hole_Small_Diameter, 300, -3.5, TOP), new_spar(35, Spar_Hole_Small_Diameter, 450, 3, BOTTOM),
     new_spar(55, Spar_Hole_Small_Diameter, 300, -3, TOP), new_spar(55, Spar_Hole_Small_Diameter, 450, 3, BOTTOM),
-    new_spar(75, Spar_Hole_Small_Diameter, 400, -1.0, CENTER),
+    new_spar(75, Spar_Hole_Small_Diameter, 400, 2, BOTTOM),
 
     // Full-span Spars go through the fuselage as one piece
-    new_spar(25, Spar_Hole_Large_Diameter, 400, 0.5),
-    new_spar(45, Spar_Hole_Large_Diameter, 400, 1.75),
-    new_spar(65, Spar_Hole_Large_Diameter, 400, 3.0)
+    new_spar(undef, fixedx = 45, Spar_Hole_Large_Diameter, 400, 0.5),
+    new_spar(undef, fixedx = 80, Spar_Hole_Large_Diameter, 400, 1.5),
+    new_spar(undef, fixedx = 115, Spar_Hole_Large_Diameter, 400,2.5)
 ];
 
 spar_hole_void_clearance = 0.0;  // Clearance for spar to grid interface (at least double extrusion width)
 
 // LIBRARY INCLUDES
 
+include <lib/Helpers.scad>
 include <lib/Fuselage.scad>
 include <lib/Grid-Structure.scad>
 include <lib/Grid-Void-Creator.scad>
-include <lib/Helpers.scad>
 include <lib/Rib-Void-Creator.scad>
 include <lib/Spar-Hole.scad>
 include <lib/Wing-Creator.scad>
@@ -520,46 +480,48 @@ module CreateRearWing() {
 module main_wing() {
    // translate([get_root_chord_mm(wing_config) * wing_config.center_line_nx, 0, 0])
                 
-    CreateWing(main_wing_config, add_connections=true) {
+    CreateWing(main_wing_config, add_connections=false) {
         // Internal structures - automatically get anhedral compensation rotation
-        
-        if (add_inner_grid) {
-            wing_internals() {
-                difference() {
-                    // Add grid structure
-                    if (grid_mode == 1) {
-                        StructureGrid(main_wing_config.wing_mm, get_root_chord_mm(main_wing_config), grid_size_factor);
-                    } else {
-                        StructureSparGrid(main_wing_config.wing_mm, get_root_chord_mm(main_wing_config), grid_size_factor, spar_num, spar_offset,
-                                          rib_num, rib_offset);
-                    }
-                    
-                    // Remove voids from grid
-                    union() {
+        down(fuselage_rod_od.x/2)
+        {
+            if (add_inner_grid) {
+                wing_internals() {
+                    difference() {
+                        // Add grid structure
                         if (grid_mode == 1) {
-                            if (create_rib_voids) {
-                                CreateRibVoids();
-                            }
+                            StructureGrid(main_wing_config.wing_mm, get_root_chord_mm(main_wing_config), grid_size_factor);
                         } else {
-                            if (create_rib_voids) {
-                                CreateRibVoids2();
+                            StructureSparGrid(main_wing_config.wing_mm, get_root_chord_mm(main_wing_config), grid_size_factor, spar_num, spar_offset,
+                                            rib_num, rib_offset);
+                        }
+                        
+                        // Remove voids from grid
+                        union() {
+                            if (grid_mode == 1) {
+                                if (create_rib_voids) {
+                                    CreateRibVoids();
+                                }
+                            } else {
+                                if (create_rib_voids) {
+                                    CreateRibVoids2();
+                                }
                             }
+                            
+                            // Remove spar void spaces from grid
+                            for (spar = spar_holes) {
+                                CreateSparVoid(spar);
+                            }
+                            
+                            // Remove grid void
+                            CreateGridVoid();
                         }
-                        
-                        // Remove spar void spaces from grid
-                        for (spar = spar_holes) {
-                            CreateSparVoid(spar);
-                        }
-                        
-                        // Remove grid void
-                        CreateGridVoid();
                     }
                 }
             }
+            
+            // Spar holes - cleaner syntax using helper module
+           wing_spar_holes(spar_holes);
         }
-        
-        // Spar holes - cleaner syntax using helper module
-      #  wing_spar_holes(spar_holes);
     }
 }
 
@@ -747,23 +709,23 @@ if(Build_TestParts) {
         right(Main_Wing_Average_Chord*Build_Scale/2) cube([2,100, main_wing_config.wing_mm*Build_Scale], anchor=BOTTOM+CENTER);
     }
 
-Main_Wing_Slot_Height=3.2;
-Main_Wing_Slot_Width=6;
-Main_Wing_Slot_Taper=1;
-Main_Wing_Slot_Slope=4;
-Main_Wing_Slot_Radius=0.35;
+    Main_Wing_Slot_Height=3.2;
+    Main_Wing_Slot_Width=6;
+    Main_Wing_Slot_Taper=1;
+    Main_Wing_Slot_Slope=4;
+    Main_Wing_Slot_Radius=0.35;
 
-Main_Wing_Slot_Length=Main_Wing_Slot_Width*1.5;
-Main_Wing_Slot_EntryLength=Main_Wing_Slot_Length+0.8; // Length of the entry slot for dovetail
+    Main_Wing_Slot_Length=Main_Wing_Slot_Width*1.5;
+    Main_Wing_Slot_EntryLength=Main_Wing_Slot_Length+0.8; // Length of the entry slot for dovetail
 
-xdistribute(spacing=Main_Wing_Slot_Width+6){
-  cuboid([Main_Wing_Slot_Width+4,Main_Wing_Slot_Length+Main_Wing_Slot_EntryLength+4,4], anchor=BOT)
-    attach(TOP,BOT,align=BACK,inset=2)
-    dovetail("male", slide=Main_Wing_Slot_Length, width=Main_Wing_Slot_Width, height=Main_Wing_Slot_Height, slope=Main_Wing_Slot_Slope, round=true, radius=Main_Wing_Slot_Radius, taper=Main_Wing_Slot_Taper);
-  diff()
-    cuboid([Main_Wing_Slot_Width+4,Main_Wing_Slot_Length+Main_Wing_Slot_EntryLength+4,Main_Wing_Slot_Height+4], anchor=BOT)
-      attach(TOP,BOT,align=BACK,inside=true,inset=2)
-        tag("remove") dovetail("female", slide=Main_Wing_Slot_Length, width=Main_Wing_Slot_Width, height=Main_Wing_Slot_Height, slope=Main_Wing_Slot_Slope, entry_slot_length=Main_Wing_Slot_EntryLength, round=true, radius=Main_Wing_Slot_Radius, taper=Main_Wing_Slot_Taper);
+    xdistribute(spacing=Main_Wing_Slot_Width+6){
+    cuboid([Main_Wing_Slot_Width+4,Main_Wing_Slot_Length+Main_Wing_Slot_EntryLength+4,4], anchor=BOT)
+        attach(TOP,BOT,align=BACK,inset=2)
+        dovetail("male", slide=Main_Wing_Slot_Length, width=Main_Wing_Slot_Width, height=Main_Wing_Slot_Height, slope=Main_Wing_Slot_Slope, round=true, radius=Main_Wing_Slot_Radius, taper=Main_Wing_Slot_Taper);
+    diff()
+        cuboid([Main_Wing_Slot_Width+4,Main_Wing_Slot_Length+Main_Wing_Slot_EntryLength+4,Main_Wing_Slot_Height+4], anchor=BOT)
+        attach(TOP,BOT,align=BACK,inside=true,inset=2)
+            tag("remove") dovetail("female", slide=Main_Wing_Slot_Length, width=Main_Wing_Slot_Width, height=Main_Wing_Slot_Height, slope=Main_Wing_Slot_Slope, entry_slot_length=Main_Wing_Slot_EntryLength, round=true, radius=Main_Wing_Slot_Radius, taper=Main_Wing_Slot_Taper);
 }
 
 /*
@@ -787,8 +749,8 @@ else
 if ($preview && Preview_BuiltModel) { 
     // Preview mode - show complete model
    xrot(90){
-        main_wing();
-        zflip() main_wing();
+        up(fuselage_rod_od.x/2) main_wing();
+        zflip() up(fuselage_rod_od.x/2) main_wing();
 
         Rear_Wing();
         zflip() Rear_Wing();

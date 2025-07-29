@@ -35,11 +35,13 @@ function fuselage_cross_section(position_ratio) =
         
         fuselage_length = get_fuselage_length(),
 
-        // Wing section transition ratio (0 = square, 1 = streamlined)
-        wing_section_length = (Main_Wing_Root_Chord_MM) / fuselage_length,
+        square_rod = true,
+
+        // Square section transition ratio (0 = square, 1 = streamlined)
+        square_section_length = (Main_Wing_Root_Chord_MM) / fuselage_length,
         
         // Create profile that transitions from square to streamlined
-        profile = position_ratio < wing_section_length ?
+        profile = (square_rod || position_ratio < square_section_length) ?
             // Square cross-section for wing section
             [
                 [-width/2, -height/2],
@@ -82,11 +84,7 @@ module Fuselage() {
         // Create spar holes through fuselage (penetrate Y-axis, span-wise)
         if (spar_through_fuselage) {
             for (spar = spar_holes) {
-                translate([
-                    (spar.perc / 100) * Main_Wing_Root_Chord_MM,
-                    spar.offset,
-                    0
-                ]) {
+                translate([spar.x, spar.offset,0 ]) {
                     cylinder(d=spar.hole_diameter + (spar_hole_void_clearance * 2), 
                                 h=spar.length * 2 * Build_Scale, center=true);
                     

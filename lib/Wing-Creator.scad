@@ -39,21 +39,6 @@
 
 include <BOSL2/std.scad>
 
-/**
- * Returns the appropriate airfoil path based on normalized wing position
- * Uses pre-computed paths from wing configuration for optimal performance
- * @param nz - Normalized Z position (0 to 1) along the wing span
- * @param wing_config - Wing configuration object containing pre-computed paths
- */
-function GetAirfoilPath(nz, wing_config) = 
-    let(
-        // Choose appropriate path based on position
-        base_path = (nz > wing_config.airfoil.tip_change_nz) ? 
-                      ($preview ? wing_config.airfoil.paths.tip_preview : wing_config.airfoil.paths.tip) :
-                    (nz > wing_config.airfoil.center_change_nz) ? 
-                      ($preview ? wing_config.airfoil.paths.mid_preview : wing_config.airfoil.paths.mid) :
-                      ($preview ? wing_config.airfoil.paths.root_preview : wing_config.airfoil.paths.root)
-    ) base_path;
 
 /**
  * Calculate the chord length at a specific wing position
@@ -109,6 +94,7 @@ function CalculateWingSliceData(z_pos, wing_config) =
     let(
         // Calculate normalized position once for this z_pos
         nz = z_pos / wing_config.wing_mm,
+        airfoil = get_airfoil_at_nz(nz, wing_config.airfoil),
         
         // Calculate chord length for this position using chord profile
         current_chord_mm = WingSliceChordLength(nz, wing_config.chord_profile),
@@ -116,13 +102,13 @@ function CalculateWingSliceData(z_pos, wing_config) =
         // Calculate anhedral parameters for this position
         anhedral = AnhedralAtPosition(nz, wing_config.anhedral.start_nz, wing_config.wing_mm, wing_config.anhedral.degrees),
         
-        // Get the base airfoil path using pre-computed paths
-        base_path = GetAirfoilPath(nz, wing_config)
+        // Get the base airfoil path using pre-computed paths in preview and per-slice thickness in render
+        scaled_path = get_airfoil_path( airfoil, current_chord_mm)
     ) object(
         nz = nz,
         current_chord_mm = current_chord_mm,
         anhedral = anhedral,
-        base_path = base_path
+        scaled_path = scaled_path
     );
 
 /**
@@ -133,8 +119,9 @@ function CalculateWingSliceData(z_pos, wing_config) =
  */
 function ApplyWingTransforms(slice_data, wing_config) =
     let(
+
         // Apply scaling and translation using BOSL2 transforms
-        scaled_path = scale([slice_data.current_chord_mm, slice_data.current_chord_mm], p=slice_data.base_path),
+        scaled_path = slice_data.scaled_path,
         
         // Apply washout rotation if needed (using normalized positions)
         washout_path = (wing_config.washout.degrees > 0 && slice_data.nz > wing_config.washout.start_nz) ?

@@ -1,6 +1,6 @@
 
 // Helper function to calculate spar hole x-position
-function spar_x_position(spar) = spar.nx * Main_Wing_Root_Chord_MM;
+function spar_x_position(spar) = spar.x;
 
 // Helper function to calculate spar hole radius
 function spar_hole_radius(spar) = spar.hole_diameter / 2;

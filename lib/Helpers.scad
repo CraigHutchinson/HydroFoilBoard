@@ -145,39 +145,119 @@ function ChordLengthElliptical(normalized_z, root_chord_mm, pow_factor = 1.0) =
 
 
 // Function to create airfoil path from top and bottom surface lines
-function create_airfoil_path_from_surfaces(top_surface, bottom_surface) = 
-    let(
+function create_airfoil_path_from_slice(slice) = 
+    let(        
+        af_top = [for (i = slice) [i.x, i.y]],       // Top surface line
+        af_bottom = [for (i = slice) [i.x, i.z]],    // Bottom surface line
+
         // Reverse bottom surface to create continuous path
-        bottom_reversed = [for (i = [len(bottom_surface) - 1 : -1 : 0]) bottom_surface[i]],
-        
+        bottom_reversed = [for (i = [len(af_bottom) - 2 : -1 : 0]) af_bottom[i]],
+
         // Combine top and bottom surfaces into single path
-        combined_path = concat(top_surface, bottom_reversed)
+        combined_path = concat(af_top, bottom_reversed)
     ) combined_path;
 
+airfoil_normalize_scale = 100; // Default scale for airfoil normalization
+
+function normalize_airfoil(original_slice) = 
+     [for (slice = original_slice)
+            let(
+                nx = slice.x/airfoil_normalize_scale,
+                ntop = slice.y/airfoil_normalize_scale,
+                nbottom = slice.z/airfoil_normalize_scale,
+            ) [nx, ntop, nbottom]
+        ];
+
+function get_airfoil_path(airfoil, reference_chord_mm = 100) =
+    let(
+        reference_scale = reference_chord_mm / airfoil_normalize_scale, // Scale factor for reference chord
+        base_path = $preview 
+            ? airfoil.path 
+            : let(
+                    // Modify the airfoil slice for printing, ensuring correct trailing edge thickness
+                    modified_slice = modify_airfoil_slice_for_printing(airfoil.slice, airfoil.trailing_edge_thickness, reference_chord_mm),
+                   // t = echo("Ref: ", airfoil.slice, " modified slice: ", modified_slice, "")
+                )
+                create_airfoil_path_from_slice( modified_slice ),
+            // Scale the path to the current chord length
+        scaled_path = scale([reference_scale, reference_scale], p=base_path)
+    ) scaled_path;
+     
 // Function to modify airfoil data for 3D printing compatibility
 // This function modifies both path and slice data consistently
-function modify_airfoil_for_printing(original_slice, min_thickness = 0.3) = 
-    let(
-        // Modify each slice point
-        modified_slice = [for (slice = original_slice)
+// reference_chord is used to determine a scale for thickness calculation from normalized airfoil data
+function modify_airfoil_slice_for_printing(normalized_slice, min_thickness_mm = 0.3, reference_chord_mm = 100) = 
+    [for (slice = normalized_slice)
             let(
-                nx = slice.x/100,
-                ntop = slice.y/100,
-                nbottom = slice.z/100,
+                nx = slice.x,
+                ntop = slice.y,
+                nbottom = slice.z,
                                 
                 // Get current thickness
                 current_thickness = abs(ntop - nbottom),
 
+                scaled_min_thickness = min_thickness_mm / (reference_chord_mm/airfoil_normalize_scale),
+
                 // Calculate thickness adjustment needed
-                //WIP: Realisation that min_thickess is aplied to the unscaled areofoil.. making thi snormalized 0-1 changes this logic as we realise
-                // its a little wrong as this part varies based on scale. i.e. We need to find a way to efficiently apply thickness adjustment
-                // to the scaled airfoil
-                thickness_adjustment = current_thickness < min_thickness/100 ? 
-                    (min_thickness/100 - current_thickness) / 2 : 0,
+                thickness_adjustment = current_thickness < scaled_min_thickness ? 
+                    (scaled_min_thickness - current_thickness) / 2 : 0,
 
                 // Apply modification to upper and lower surfaces
                 modified_top = ntop + thickness_adjustment,
                 modified_bottom = nbottom - thickness_adjustment
-            ) [nx, modified_top, modified_bottom]
-        ]
-    ) modified_slice;
+            ) [nx, ntop, nbottom]
+        ];
+
+
+/**
+ * Returns the appropriate airfoil path based on normalized wing position
+ * Uses pre-computed paths from wing configuration for optimal performance
+ * @param nz - Normalized Z position (0 to 1) along the wing span
+ * @param wing_config - Wing configuration object containing pre-computed paths
+ */
+function get_airfoil_at_nz(nz, airfoil_config) = 
+    let(
+        // Choose appropriate path based on position
+        airfoil = (nz > airfoil_config.tip_change_nz)  ?  airfoil_config.paths.tip :
+                (nz > airfoil_config.center_change_nz) ?  airfoil_config.paths.mid
+                                                       : airfoil_config.paths.root
+    ) airfoil;
+
+// Helper function to create a complete airfoil object from original airfoil data
+// airfoil_slice_original: Original airfoil slice data from airfoil library
+// trailing_edge_thickness: Minimum trailing edge thickness for 3D printing
+// Returns an object containing all airfoil components (top, bottom, mid, path, preview paths)
+function create_airfoil_object(airfoil_slice_original, trailing_edge_thickness, reference_chord_mm = 100) = 
+    let(
+        af_nslice = normalize_airfoil(airfoil_slice_original),
+        
+        //_ = echo("Normalized airfoil slice: ", af_nslice),
+
+        // Modify airfoil slice data for 3D printing
+        // NOTE: We only scale the source airfoil on preview but scale on slice-by-slice for render
+        af_modified_slice = false && $preview 
+            ? modify_airfoil_slice_for_printing(af_nslice, trailing_edge_thickness, reference_chord_mm) 
+            : af_nslice,
+        
+        // Extract surface lines from modified slice data
+        af_top = [for (i = af_modified_slice) [i.x, i.y]],       // Top surface line
+        af_bottom = [for (i = af_modified_slice) [i.x, i.z]],    // Bottom surface line
+        
+        // Mean camber line - midline halfway between top and bottom surfaces
+        af_camber = [for (i = af_modified_slice) [i.x, (i.y + i.z) / 2]],
+        
+        // Create airfoil path from modified surface data
+        af_path = create_airfoil_path_from_slice( af_modified_slice )
+    ) object(
+        slice = af_modified_slice,
+        trailing_edge_thickness = trailing_edge_thickness,
+        
+        top = af_top,
+        bottom = af_bottom,
+        mid = af_camber,
+
+        // Pre-resampled paths for preview mode
+        path = false && $preview 
+            ? resample_path(af_path, n=30, keep_corners=10, closed=true) 
+            : af_path
+    );
