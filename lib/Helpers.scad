@@ -259,3 +259,10 @@ function create_airfoil_object(airfoil_slice_original, trailing_edge_thickness, 
             ? resample_path(af_path, n=30, keep_corners=10, closed=true) 
             : af_path
     );
+
+// Helper function to access airfoil surface data
+// Uses BOSL2 anchor constants for consistent interface
+function get_airfoil_surface(surface_anchor=CENTER) = 
+    surface_anchor == TOP ? af_root.top :
+    surface_anchor == BOTTOM ? af_root.bottom :
+    af_root.camber; // Default to mean camber for CENTER or any other value

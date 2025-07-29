@@ -347,21 +347,6 @@ function get_root_chord_mm(wing_config) = wing_config.chord_profile.root_chord_m
 function get_tip_chord_mm(wing_config) = wing_config.chord_profile.tip_chord_mm;
 function get_elliptic_pow(wing_config) = wing_config.chord_profile.elliptic_pow;
 
-// Helper functions to access airfoil paths cleanly
-function get_airfoil_path(wing_config, path_type="root", preview=false) = 
-    let(
-        paths = wing_config.airfoil.paths,
-        path = (path_type == "tip") ? (preview ? paths.tip_preview : paths.tip) :
-               (path_type == "mid") ? (preview ? paths.mid_preview : paths.mid) :
-               (preview ? paths.root_preview : paths.root)
-    ) path;
-
-// Helper function to access airfoil surface data
-// Uses BOSL2 anchor constants for consistent interface
-function get_airfoil_surface(surface_anchor=CENTER) = 
-    surface_anchor == TOP ? af_root.top :
-    surface_anchor == BOTTOM ? af_root.bottom :
-    af_root.camber; // Default to mean camber for CENTER or any other value
 
 // Function to calculate the ideal spar offset based on airfoil geometry
 // nx: Normalized X from leading edge (0-1)  
