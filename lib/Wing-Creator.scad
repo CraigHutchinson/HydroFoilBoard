@@ -300,14 +300,122 @@ function AnhedralAtPosition(nz, anhedral_start_nz, wing_mm, anhedral_degrees) =
     );
  
 /**
- * Create a wing from a configuration object
- * This is the new unified wing creation function that takes a wing configuration object
+ * Create a hollow wing with additive spar structure
+ * This creates a wing shell and adds spar structures as positive geometry for better 3D printing
  * @param wing_config - Wing configuration object with all parameters
+ * @param wall_thickness - Wing shell thickness in mm (default: 1.2mm)
  * @param add_connections - Whether to add connection features for multi-part printing
  * @param connection_length - Length of connection taper in mm (default: 4mm)
- * @param wall_thickness - Wall thickness for connections in mm (default: 0.4mm)
+ * @param connection_wall_thickness - Wall thickness for connections in mm (default: 0.4mm)
  * @param is_male_end - Whether the end of this section should be male (true) or female (false)
  */
+module CreateHollowWing(wing_config, wall_thickness=1.2, add_connections=false, connection_length=4, connection_wall_thickness=0.4, is_male_end=true) {
+    
+    // Calculate z positions using the exposed function
+    z_positions = CalculateWingZPositions(wing_config);
+    bounds = get_current_split_bounds(wing_config.wing_mm);
+    
+    // Calculate anhedral compensation rotation to make wing sit flat on print bed
+    bottom_slice = CalculateWingSliceData(bounds.start_z, wing_config);
+
+    // Apply compensation rotation around x-axis to make wing sit flat
+    xrot(-bottom_slice.anhedral.angle, cp = [0,0,bounds.start_z]) {
+
+        // Create outer wing profiles (normal airfoil)
+        outer_profiles = [
+            for (z_pos = z_positions) 
+                BuildWingProfile(z_pos, wing_config)
+        ];
+        
+        // Create inner wing profiles (offset inward by wall thickness)
+        inner_profiles = [
+            for (z_pos = z_positions) 
+                BuildHollowWingProfile(z_pos, wing_config, wall_thickness)
+        ];
+
+        // Use BOSL2-style diff() pattern to allow children to participate in boolean operations
+        diff("wing_remove", "wing_keep") {
+            union() {
+                // Main wing shell - difference between outer and inner profiles
+                difference() {
+                    skin(outer_profiles, slices=0, refine=1, method="direct", sampling="segment");
+                    skin(inner_profiles, slices=0, refine=1, method="direct", sampling="segment");
+                }
+                
+                // Add positive spar structures as solid geometry
+                tag("wing_keep") children();
+            }
+            
+            // Add male connector at end if needed
+            if (add_connections && bounds.end_z < wing_config.wing_mm && is_male_end) {
+                tag("wing_keep") {
+                    end_slice_data = CalculateWingSliceData(bounds.end_z, wing_config);
+                    CreateMaleConnector(
+                        end_slice_data.base_path, 
+                        connection_length, 
+                        connection_wall_thickness, 
+                        bounds.end_z, 
+                        wing_config, 
+                        end_slice_data
+                    );
+                }
+            }
+            
+            // Subtract female connector at start if needed
+            if (add_connections && bounds.start_z > 0) {
+                tag("wing_remove") {
+                    start_slice_data = CalculateWingSliceData(bounds.start_z, wing_config);
+                    CreateFemaleConnector(
+                        start_slice_data.base_path, 
+                        connection_length, 
+                        connection_wall_thickness, 
+                        bounds.start_z, 
+                        wing_config, 
+                        start_slice_data
+                    );
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Build a hollow wing profile (offset inward) for a given Z position
+ * This creates the inner cavity profile for hollow wing construction
+ * @param z_pos - Absolute Z position along wing span
+ * @param wing_config - Wing configuration object
+ * @param wall_thickness - Inward offset distance for the cavity
+ * @return final 3D path for inner cavity
+ */
+function BuildHollowWingProfile(z_pos, wing_config, wall_thickness) =
+    let(
+        // Calculate slice data normally
+        slice_data = CalculateWingSliceData(z_pos, wing_config),
+        
+        // Get offset airfoil path (negative wall_thickness for inward offset)
+        offset_path = get_offset_airfoil_path(
+            get_airfoil_at_nz(slice_data.nz, wing_config.airfoil), 
+            slice_data.current_chord_mm, 
+            -wall_thickness
+        ),
+        
+        // Create modified slice data with offset path
+        hollow_slice_data = object(
+            nz = slice_data.nz,
+            current_chord_mm = slice_data.current_chord_mm,
+            anhedral = slice_data.anhedral,
+            scaled_path = offset_path
+        )
+    ) ApplyWingTransforms(hollow_slice_data, wing_config);
+
+/**
+ * Create positive spar structures for hollow wings
+ * Use this as a child of CreateHollowWing to add solid spar geometry
+ */
+module hollow_wing_spars(spar_config, wing_config) {
+    // Create positive spar structures using the grid system but as solid geometry
+    StructureSparGridConfigured(wing_config, spar_config);
+}
 module CreateWing(wing_config, add_connections=false, connection_length=4, wall_thickness=0.4, is_male_end=true) {
     
     // Calculate z positions using the exposed function

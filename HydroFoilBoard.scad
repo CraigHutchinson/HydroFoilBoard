@@ -65,10 +65,19 @@ Spar_Hole_Large_Diameter = Spar_Rod_Large_Diameter + Spar_Large_Tolerance;
 /* [Design+Print Settings] */
 // Enable vase mode printing optimizations
 Design_For_VaseMode = false;
+// Use hollow wing construction with additive spar structure (better for 3D printing)
+// HOLLOW WING BENEFITS:
+// - Spar structures print as solid positive features (no bridging)
+// - Easier calibration by adjusting wall thickness
+// - Stronger structure with integral spar elements
+// - More material efficient (only print what's needed)
+Use_Hollow_Wing_Construction = true;
+// Wing shell thickness for hollow construction (mm)
+Wing_Shell_Thickness = 1.2; // [0.4:0.1:3.0]
 // Interface and gap width values
 slice_ext_width = 0.6; // [0.1:0.1:2.0]
 // Gap in outer skin (smaller is better, limited by slicer)
-slice_gap_width = 0.02; // [0.01:0.01:0.5] 
+slice_gap_width = 0.05; // [0.01:0.01:0.5] 
 
 /* [Main Wing Geometry Settings] */
 // Based on AXIS PNG 1150 specifications
@@ -320,9 +329,9 @@ stabilizer_connection_spacing = 50; // Distance between stabilizer mounting bolt
 
 /* [Internal Grid Structure Settings] */
 // Add inner grid for 3D printing (!Print_For_VaseMode)
-add_inner_grid = false;
-// 1=diamond grid, 2=spar and cross spars
-grid_mode = 1;
+add_inner_grid = true;
+// 1=diamond grid, 2=spar and cross spars (legacy), 3=configured spar grid (uses spar config)
+grid_mode = 3;
 // Add holes to ribs to decrease weight
 create_rib_voids = false;
 
@@ -330,7 +339,7 @@ create_rib_voids = false;
 // Changes the size of inner grid blocks
 grid_size_factor = 2; // [1:1:10]
 
-// Grid Mode 2 Settings (Spar and Cross Spars)
+// Grid Mode 2 Settings (Legacy Spar and Cross Spars) - Uses linear spacing
 // Number of spars
 spar_num = 3; // [1:1:10]
 // Offset spars from LE/TE
@@ -339,6 +348,10 @@ spar_offset = 15; // [0:5:50]
 rib_num = 6; // [1:1:20]
 // Rib offset
 rib_offset = 1; // [0:1:10]
+
+// Grid Mode 3 Settings (Configured Spar Grid) - Uses spar configuration positions
+// Grid settings are defined in main_wing_spar_config.grid object
+// Individual spar positions are defined in main_wing_spar_config.spars array
 
 // CARBON SPAR SYSTEM
 // Helper functions to access chord profile components cleanly
@@ -401,28 +414,217 @@ function new_spar(percx, diam, length, offset, anchor=undef, fixedx=undef) = obj
     offset = ((anchor != undef ? calculate_spar_offset_at_chord_position(percx/100, main_wing_config, anchor) : 0) + offset) * Build_Scale
 );
 
-// Spar hole configurations
-// Uses calculated offsets based on airfoil geometry for optimal structural positioning
-spar_holes = [
-    // Full-span Spars go through the fuselage as one piece
-    new_spar(undef, fixedx = 45, Spar_Hole_Large_Diameter, 400, 0.5),
-    new_spar(undef, fixedx = 80, Spar_Hole_Large_Diameter, 400, 1.5),
-    new_spar(undef, fixedx = 115, Spar_Hole_Large_Diameter, 400,2.5),
+/**
+ * Function to create a new spar configuration object for unified spar/grid system
+ * This creates more legible spar configurations that can be used for both holes and grid generation
+ * 
+ * @param type - Spar type: "structural" (full-span through fuselage) or "secondary" (split at centerline)
+ * @param diameter - Rod diameter in mm (before tolerance)
+ * @param length - Spar length in mm
+ * @param anchor - BOSL2 anchor constant (TOP, BOTTOM, CENTER) for airfoil positioning
+ * @param offset - Manual y-offset adjustment in mm
+ * @param name - Optional descriptive name for debugging
+ * @param fixedx - Fixed position in mm from leading edge (mutually exclusive with percentx)
+ * @param percentx - Percentage position from leading edge (mutually exclusive with fixedx)
+ */
+function new_spar_config(type, diameter, length, anchor=CENTER, offset=0, name=undef, fixedx=undef, percentx=undef) = 
+    let(
+        // Validate that exactly one position parameter is provided
+        _ = assert(
+            (fixedx != undef && percentx == undef) || (fixedx == undef && percentx != undef),
+            "Must specify exactly one of fixedx or percentx"
+        )
+    )
+    object(
+        // Metadata
+        type = type, // "structural" or "secondary"
+        name = name,
+        
+        // Position
+        x_percent = percentx,
+        x_mm = fixedx,
+        
+        // Physical properties
+        rod_diameter = diameter,
+        hole_diameter = (diameter == Spar_Rod_Small_Diameter) ? Spar_Hole_Small_Diameter : 
+                       (diameter == Spar_Rod_Large_Diameter) ? Spar_Hole_Large_Diameter : 
+                       diameter + 0.15, // Default tolerance if not standard size
+        length = length,
+        
+        // Positioning
+        anchor = anchor,
+        offset = offset
+    );
 
-    // Full-span Spars go through, the wing but are split at the center line (May optionally be glued into the wing structure)
-    new_spar(10, Spar_Hole_Small_Diameter, 300, 0.5, CENTER),
-    new_spar(15, Spar_Hole_Small_Diameter, 250, -3.5, TOP), new_spar(15, Spar_Hole_Small_Diameter, 250, 3.25, BOTTOM),
-    new_spar(35, Spar_Hole_Small_Diameter, 300, -3.5, TOP), new_spar(35, Spar_Hole_Small_Diameter, 450, 3, BOTTOM),
-    new_spar(55, Spar_Hole_Small_Diameter, 300, -3, TOP), new_spar(55, Spar_Hole_Small_Diameter, 450, 3, BOTTOM),
-    new_spar(75, Spar_Hole_Small_Diameter, 400, 2, BOTTOM)
+/**
+ * Function to create a paired spar configuration (top + bottom holes with shared grid spar)
+ * This creates a composite spar object that generates both top and bottom holes
+ * plus a structural grid element at the same chord position
+ * 
+ * @param name - Descriptive name for the paired spar system
+ * @param top_diameter - Rod diameter for top hole in mm
+ * @param top_length - Length for top spar in mm  
+ * @param top_offset - Y-offset adjustment for top hole in mm
+ * @param top_anchor - BOSL2 anchor constant for top hole positioning (TOP, BOTTOM, CENTER)
+ * @param bottom_diameter - Rod diameter for bottom hole in mm
+ * @param bottom_length - Length for bottom spar in mm
+ * @param bottom_offset - Y-offset adjustment for bottom hole in mm
+ * @param bottom_anchor - BOSL2 anchor constant for bottom hole positioning (TOP, BOTTOM, CENTER)
+ * @param fixedx - Fixed position in mm from leading edge (mutually exclusive with percentx)
+ * @param percentx - Percentage position from leading edge (mutually exclusive with fixedx)
+ */
+function new_paired_spar_config(name, top_diameter, top_length, top_offset, top_anchor, bottom_diameter, bottom_length, bottom_offset, bottom_anchor, fixedx=undef, percentx=undef) = 
+    let(
+        // Validate that exactly one position parameter is provided
+        _ = assert(
+            (fixedx != undef && percentx == undef) || (fixedx == undef && percentx != undef),
+            "Must specify exactly one of fixedx or percentx"
+        ),
+        
+        // Create top and bottom spar configs using new_spar_config for consistency
+        top_config = new_spar_config("secondary", top_diameter, top_length, top_anchor, top_offset, 
+                                    str(name, " Top"), fixedx=fixedx, percentx=percentx),
+        bottom_config = new_spar_config("secondary", bottom_diameter, bottom_length, bottom_anchor, bottom_offset, 
+                                       str(name, " Bottom"), fixedx=fixedx, percentx=percentx)
+    )
+    object(
+        // Metadata
+        type = "paired", // New type for paired top/bottom spars
+        name = name,
+        
+        // Position (shared by both top and bottom)
+        x_percent = percentx,
+        x_mm = fixedx,
+        
+        // Top and bottom spar configurations using new_spar_config
+        top_config = top_config,
+        bottom_config = bottom_config
+    );
+
+/**
+ * Helper function to extract x-position in mm from spar config for a given wing
+ * Works with both single and paired spar configurations
+ */
+function get_spar_x_mm(spar_config, wing_config) = 
+    (spar_config.x_mm != undef) ? spar_config.x_mm * Build_Scale :
+    (spar_config.x_percent / 100) * get_root_chord_mm(wing_config) * Build_Scale;
+
+/**
+ * Helper function to expand paired spar config into individual spar hole configs
+ * Returns an array of individual spar configs (1 for single, 2 for paired)
+ */
+function expand_spar_config(spar_config) = 
+    (spar_config.type == "paired") ? [
+        // Return the pre-created top and bottom spar configs
+        spar_config.top_config,
+        spar_config.bottom_config
+    ] : [spar_config]; // Single spar configs return as-is
+
+/**
+ * Helper function to get all individual spar configs (expands paired spars)
+ */
+function get_all_individual_spars(spar_config) = 
+    flatten([for (spar = spar_config.spars) expand_spar_config(spar)]);
+
+/**
+ * Helper function to convert spar config to legacy spar hole format
+ */
+function spar_config_to_hole(spar_config, wing_config) = object(
+    x = get_spar_x_mm(spar_config, wing_config),
+    diameter = undef, // Legacy compatibility
+    anchor = spar_config.anchor,
+    hole_diameter = spar_config.hole_diameter * Build_Scale,
+    length = spar_config.length * Build_Scale,
+    offset = ((spar_config.anchor != undef) ? 
+        calculate_spar_offset_at_chord_position(
+            (spar_config.x_percent != undef ? spar_config.x_percent/100 : spar_config.x_mm/get_root_chord_mm(wing_config)), 
+            wing_config, 
+            spar_config.anchor
+        ) : 0) + (spar_config.offset * Build_Scale)
+);
+
+/**
+ * MAIN WING SPAR CONFIGURATION
+ * 
+ * Unified spar configuration system that defines both spar holes and grid structure.
+ * Uses new_spar_config() for legible, consistent configuration.
+ * 
+ * Spar Types:
+ * - "structural": Full-span spars that go through the fuselage as one piece
+ * - "secondary": Wing-only spars that are split at the centerline
+ */
+main_wing_spar_config = object(
+    // Individual spar definitions
+    spars = [
+        // STRUCTURAL SPARS - Full-span through fuselage (fixed positions for fuselage compatibility)
+        new_spar_config("structural", Spar_Rod_Large_Diameter, 400, undef, 0.5, "Front Main Spar", fixedx=45),
+        new_spar_config("structural", Spar_Rod_Large_Diameter, 400, undef, 1.5, "Center Main Spar", fixedx=80), 
+        new_spar_config("structural", Spar_Rod_Large_Diameter, 400, undef, 2.5, "Rear Main Spar", fixedx=115),
+        
+        // SECONDARY SPARS - Wing-only, single holes
+        new_spar_config("secondary", Spar_Rod_Small_Diameter, 300, CENTER, 0.5, "Forward Secondary", percentx=10),
+        new_spar_config("secondary", Spar_Rod_Small_Diameter, 400, BOTTOM, 2, "Trailing Edge", percentx=75),
+        
+        // PAIRED SPARS - Top and bottom holes with structural grid capability
+        new_paired_spar_config("Leading Edge Dual", 
+            Spar_Rod_Small_Diameter, 250, -3.5, TOP,       // top: diameter, length, offset, anchor
+            Spar_Rod_Small_Diameter, 250, 3.25, BOTTOM,    // bottom: diameter, length, offset, anchor
+            percentx=15),
+        
+        new_paired_spar_config("Mid Forward Dual",
+            Spar_Rod_Small_Diameter, 300, -3.5, TOP,       // top: diameter, length, offset, anchor
+            Spar_Rod_Small_Diameter, 450, 3, BOTTOM,       // bottom: diameter, length, offset, anchor
+            percentx=35),
+            
+        new_paired_spar_config("Mid Rear Dual", 
+            Spar_Rod_Small_Diameter, 300, -3, TOP,         // top: diameter, length, offset, anchor
+            Spar_Rod_Small_Diameter, 450, 3, BOTTOM,       // bottom: diameter, length, offset, anchor
+            percentx=55)
+    ],
+    
+    // Grid generation settings
+    grid = object(
+        enabled = true,
+        mode = "spar_based", // Use spar positions instead of linear spacing
+        large_rod_thickness = slice_gap_width * 2, // Thicker grid slices for large rod spars
+        small_rod_thickness = slice_gap_width, // Standard thickness for small rod spars
+        rib_thickness = slice_gap_width, // Thickness for rib grid elements
+        rib_count = 6,
+        rib_offset = 1
+    )
+);
+
+// Helper functions for spar configuration
+function get_structural_spars(spar_config) = [for (spar = spar_config.spars) if (spar.type == "structural") spar];
+function get_secondary_spars(spar_config) = [for (spar = spar_config.spars) if (spar.type == "secondary") spar];
+function get_paired_spars(spar_config) = [for (spar = spar_config.spars) if (spar.type == "paired") spar];
+// All spars now contribute to grid structure - no filtering needed
+function get_grid_spars(spar_config) = spar_config.spars;
+function get_all_spar_x_positions(spar_config, wing_config) = [for (spar = get_all_individual_spars(spar_config)) get_spar_x_mm(spar, wing_config)];
+
+// Generate legacy spar_holes array from spar configuration for backward compatibility
+function generate_spar_holes(spar_config, wing_config) = [
+    for (spar = get_all_individual_spars(spar_config)) spar_config_to_hole(spar, wing_config)
 ];
+
+// Spar hole configurations - generated from unified spar configuration
+// Uses calculated offsets based on airfoil geometry for optimal structural positioning
+spar_holes = generate_spar_holes(main_wing_spar_config, main_wing_config);
 
 spar_hole_void_clearance = 0.0;  // Clearance for spar to grid interface (at least double extrusion width)
 
-// Required position for consistency of fuselage fit
-assert( spar_holes[0].x == 45, "Spar hole 0 should be at fixed x=45mm" );
-assert( spar_holes[1].x == 80, "Spar hole 1 should be at fixed x=80mm" );
-assert( spar_holes[2].x == 115, "Spar hole 2 should be at fixed x=115mm" );
+// Required position assertions for consistency of fuselage fit (structural spars)
+structural_spars = get_structural_spars(main_wing_spar_config);
+spar_0_x = get_spar_x_mm(structural_spars[0], main_wing_config);
+spar_1_x = get_spar_x_mm(structural_spars[1], main_wing_config);
+spar_2_x = get_spar_x_mm(structural_spars[2], main_wing_config);
+
+echo(str("DEBUG: Structural spar positions - 0:", spar_0_x, "mm, 1:", spar_1_x, "mm, 2:", spar_2_x, "mm"));
+echo(str("DEBUG: Build_Scale = ", Build_Scale));
+
+assert( spar_0_x == 45, str("Structural spar 0 should be at x=45mm, got ", spar_0_x, "mm") );
+assert( spar_1_x == 80, str("Structural spar 1 should be at x=80mm, got ", spar_1_x, "mm") );
+assert( spar_2_x == 115, str("Structural spar 2 should be at x=115mm, got ", spar_2_x, "mm") );
 
 
 // LIBRARY INCLUDES
@@ -451,48 +653,69 @@ module CreateRearWing() {
 // MAIN WING MODULE  
 module main_wing() {
    // translate([get_root_chord_mm(wing_config) * wing_config.center_line_nx, 0, 0])
-                
-    CreateWing(main_wing_config, add_connections=false) {
-        // Internal structures - automatically get anhedral compensation rotation
-        down(fuselage_rod_od.x/2)
-        {
-            if (add_inner_grid) {
-                wing_internals() {
-                    difference() {
+    
+    if (Use_Hollow_Wing_Construction) {
+        // New hollow wing construction with additive spar structure
+        CreateHollowWing(main_wing_config, Wing_Shell_Thickness, add_connections=false) {
+            // Internal structures - automatically get anhedral compensation rotation
+            down(fuselage_rod_od.x/2) {
+                if (add_inner_grid && false) {
+                    // Add positive spar structures for hollow wing
+                    hollow_wing_spars(main_wing_spar_config, main_wing_config);
+                }
+            }
+        }
+    } else {
+        // Traditional solid wing construction (legacy)
+        CreateWing(main_wing_config, add_connections=false) {
+            // Internal structures - automatically get anhedral compensation rotation
+            down(fuselage_rod_od.x/2)
+            {
+                if (add_inner_grid && false) {
+                    wing_remove() {
                         // Add grid structure
                         if (grid_mode == 1) {
-                            StructureGrid(main_wing_config.wing_mm, get_root_chord_mm(main_wing_config), grid_size_factor);
-                        } else {
-                            StructureSparGrid(main_wing_config.wing_mm, get_root_chord_mm(main_wing_config), grid_size_factor, spar_num, spar_offset,
+                           StructureGrid(main_wing_config.wing_mm, get_root_chord_mm(main_wing_config), grid_size_factor);
+                        } else if (grid_mode == 2) {
+                           StructureSparGrid(main_wing_config.wing_mm, get_root_chord_mm(main_wing_config), grid_size_factor, spar_num, spar_offset,
                                             rib_num, rib_offset);
+                        } else if (grid_mode == 3) {
+                           StructureSparGridConfigured(main_wing_config, main_wing_spar_config);
                         }
                         
-                        // Remove voids from grid
-                        union() {
-                            if (grid_mode == 1) {
-                                if (create_rib_voids) {
-                                    CreateRibVoids();
+                        //TODO: Freezes atm
+                        if(false/*temp*/){
+                                // Remove voids from grid
+                                union() {
+                                    if (grid_mode == 1) {
+                                        if (create_rib_voids) {
+                                            CreateRibVoids();
+                                        }
+                                    } else if (grid_mode == 2) {
+                                        if (create_rib_voids) {
+                                            CreateRibVoids2();
+                                        }
+                                    } else if (grid_mode == 3) {
+                                        if (create_rib_voids) {
+                                            CreateRibVoids2(); // Use same void system as mode 2
+                                        }
+                                    }
+                                    
+                                    // Remove spar void spaces from grid
+                                    for (spar = spar_holes) {
+                                        CreateSparVoid(spar);
+                                    }
+                                    
+                                    // Remove grid void
+                                    CreateGridVoid();
                                 }
-                            } else {
-                                if (create_rib_voids) {
-                                    CreateRibVoids2();
-                                }
-                            }
-                            
-                            // Remove spar void spaces from grid
-                            for (spar = spar_holes) {
-                                CreateSparVoid(spar);
-                            }
-                            
-                            // Remove grid void
-                            CreateGridVoid();
                         }
                     }
                 }
+                
+                // Spar holes - cleaner syntax using helper module
+               wing_spar_holes(spar_holes);
             }
-            
-            // Spar holes - cleaner syntax using helper module
-           wing_spar_holes(spar_holes);
         }
     }
 }
@@ -541,6 +764,33 @@ echo("Main wing config:", wing_config_summary(main_wing_config));
 echo("Rear wing config:", wing_config_summary(rear_wing_config));
 echo("===================================");
 
+// Debug: Show spar configuration details
+echo("=== SPAR CONFIGURATION DETAILS ===");
+echo("Structural spars:", len(get_structural_spars(main_wing_spar_config)));
+echo("Secondary spars:", len(get_secondary_spars(main_wing_spar_config)));
+echo("Paired spars:", len(get_paired_spars(main_wing_spar_config)));
+echo("All spars contribute to grid structure");
+echo("Total individual holes:", len(get_all_individual_spars(main_wing_spar_config)));
+echo("Total spar configs:", len(main_wing_spar_config.spars));
+for (i = [0:len(main_wing_spar_config.spars)-1]) {
+    spar = main_wing_spar_config.spars[i];
+    x_pos = get_spar_x_mm(spar, main_wing_config);
+    if (spar.type == "paired") {
+        echo(str("Spar ", i, " (", spar.type, "): ", 
+            spar.name != undef ? spar.name : "unnamed",
+            " @ ", x_pos/Build_Scale, "mm",
+            ", top: ", spar.top_config.rod_diameter, "mm rod",
+            ", bottom: ", spar.bottom_config.rod_diameter, "mm rod"));
+    } else {
+        echo(str("Spar ", i, " (", spar.type, "): ", 
+            spar.name != undef ? spar.name : "unnamed",
+            " @ ", x_pos/Build_Scale, "mm, ", 
+            spar.rod_diameter, "mm rod, ",
+            spar.anchor, " anchor"));
+    }
+}
+echo("===================================");
+
 
 // Display hydrofoil specifications
 echo("========================================");
@@ -587,7 +837,7 @@ echo(str("Fuselage Type: ",
 ));
 echo(str("Fuselage Dimensions: ", fuselage_width, " × ", fuselage_height, " mm"));
 echo("----------------------------------------");
-echo(str("Number of Spars: ", len(spar_holes)));
+echo(str("Number of Spars: ", len(main_wing_spar_config.spars), " (", len(get_structural_spars(main_wing_spar_config)), " structural + ", len(get_secondary_spars(main_wing_spar_config)), " secondary)"));
 echo(str("Spar Through Design: ", spar_through_fuselage ? "Yes" : "No"));
 echo("----------------------------------------");
 echo(str("Build Scale: ", Build_Scale, "x"));
@@ -599,6 +849,30 @@ echo("========================================");
     echo("ERROR: add_inner_grid needs to be true for spar_hole to be true");
 }*/
 
+if (true /*dev*/ && $preview )
+{
+    // Development mode - show hollow vs solid wing comparison
+    if (Use_Hollow_Wing_Construction) {
+        front_half() {
+            main_wing();
+            
+            // Show solid wing in transparent red for comparison
+           # color([1,0,0,0.3]) translate([0, -50, 0]) {
+                CreateWing(main_wing_config, add_connections=false) {
+                    down(fuselage_rod_od.x/2) {
+                        if (add_inner_grid) {
+                            wing_remove() StructureSparGridConfigured(main_wing_config, main_wing_spar_config);
+                        }
+                        wing_spar_holes(spar_holes);
+                    }
+                }
+            }
+        }
+    } else {
+        front_half() main_wing();
+    }
+}
+else
 if ( Main_Wing_Area_DoAnalysis )
 {
     visualize_actual_wing_area(main_wing_config);

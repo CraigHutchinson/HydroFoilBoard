@@ -81,6 +81,59 @@ module StructureSparGrid(wing_mm, root_chord, size_factor, spar_num, spar_offset
     }
 }
 
+/**
+ * Advanced spar grid that uses spar configuration object for precise positioning
+ * Aligns grid structure with actual spar hole positions for optimal integration
+ * 
+ * @param wing_config - Wing configuration object
+ * @param spar_config - Spar configuration object containing spar definitions
+ */
+module StructureSparGridConfigured(wing_config, spar_config)
+{
+    wing_mm = wing_config.wing_mm;
+    root_chord = get_root_chord_mm(wing_config);
+    grid_config = spar_config.grid;
+    
+    // Get spar positions to use for grid alignment
+    grid_spars = grid_config.structural_only ? 
+        get_structural_spars(spar_config) : 
+        spar_config.spars;
+    
+    // Rib spacing calculation
+    space_bet_ribs = (wing_mm - (grid_config.rib_offset * 2)) / (grid_config.rib_count - 1);
+
+    difference()
+    {
+        union()
+        {
+            // SPAR GRID LINES - Use actual spar positions with rod-specific thickness
+            for (spar = grid_spars)
+            {
+                x_pos = get_spar_x_mm(spar, wing_config) / Build_Scale; // Convert back to unscaled units
+                
+                // Determine thickness based on spar rod diameter
+                spar_thickness = (spar.type == "paired") ? 
+                    // For paired spars, use the larger of the two rod diameters
+                    ((spar.top_config.rod_diameter == Spar_Rod_Large_Diameter || spar.bottom_config.rod_diameter == Spar_Rod_Large_Diameter) ? 
+                        grid_config.large_rod_thickness : grid_config.small_rod_thickness) :
+                    // For single spars, check rod diameter directly
+                    (spar.rod_diameter == Spar_Rod_Large_Diameter ? 
+                        grid_config.large_rod_thickness : grid_config.small_rod_thickness);
+                
+                translate([ x_pos, -root_chord / 3 / 2, 0 ]) color("orange")
+                    cube([ spar_thickness, root_chord / 3, wing_mm ]);
+            }
+            
+            // RIB GRID LINES - Cross-ribs at regular intervals
+            for (i = [0:grid_config.rib_count])
+            {
+                translate([ 0, -root_chord / 3 / 2, space_bet_ribs * i ]) color("green") rotate([ 0, 55, 0 ])
+                    cube([ root_chord * 2, root_chord / 3, grid_config.rib_thickness ]);
+            }
+        }
+    }
+}
+
 /*module StructureSparVoid(wing_mm, root_chord, size_factor, spar_num, spar_offset, spar_hole_num, rib_num, rib_offset)
 {
 
