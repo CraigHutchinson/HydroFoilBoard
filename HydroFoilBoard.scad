@@ -335,6 +335,12 @@ grid_mode = 3;
 // Add holes to ribs to decrease weight
 create_rib_voids = false;
 
+// Grid Thickness Control
+// Grid thickness multiplier for structural integrity (larger = thicker grid)
+Grid_Thickness_Multiplier = 0.5; // [0.2:0.1:2.0]
+// Override grid thickness (0 = use calculated thickness based on spar diameters)
+Grid_Override_Thickness = 0; // [0:0.5:5.0]
+
 // Grid Mode 1 Settings (Diamond Grid)
 // Changes the size of inner grid blocks
 grid_size_factor = 2; // [1:1:10]
@@ -586,9 +592,13 @@ main_wing_spar_config = object(
     grid = object(
         enabled = true,
         mode = "spar_based", // Use spar positions instead of linear spacing
-        large_rod_thickness = slice_gap_width * 2, // Thicker grid slices for large rod spars
-        small_rod_thickness = slice_gap_width, // Standard thickness for small rod spars
-        rib_thickness = slice_gap_width, // Thickness for rib grid elements
+        // Grid thickness - use override if specified, otherwise calculate from spar diameters
+        large_rod_thickness = (Grid_Override_Thickness > 0) ? Grid_Override_Thickness : 
+                             (Spar_Rod_Large_Diameter * Grid_Thickness_Multiplier), // Default: 2mm for 4mm rod with 0.5 multiplier
+        small_rod_thickness = (Grid_Override_Thickness > 0) ? Grid_Override_Thickness : 
+                             (Spar_Rod_Small_Diameter * Grid_Thickness_Multiplier), // Default: 1mm for 2mm rod with 0.5 multiplier
+        rib_thickness = (Grid_Override_Thickness > 0) ? Grid_Override_Thickness : 
+                       (Spar_Rod_Small_Diameter * Grid_Thickness_Multiplier), // Use small rod thickness for ribs
         rib_count = 6,
         rib_offset = 1
     )
@@ -855,7 +865,7 @@ if (true /*dev*/ && $preview )
 {
     // Development mode - show hollow vs solid wing comparison
     if (Use_Hollow_Wing_Construction) {
-     front_half(s=main_wing_config.wing_mm*2)       
+     back_half(s=main_wing_config.wing_mm*2)       
             main_wing();
             
             // Show solid wing in transparent red for comparison

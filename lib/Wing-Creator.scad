@@ -445,11 +445,11 @@ module hollow_wing_spars(spar_config, wing_config) {
             // Add the grid structure (ribs and cross-members) as positive geometry
             StructureSparGridConfigured(wing_config, spar_config);
             
-            // Create individual spar tubes with extra material for holes
-            // Generate spar holes and use their position data to create tubes
+            // Create individual spar tubes with smooth transitions to structural bars
+            // Generate spar holes and use their position data to create enhanced tubes
             spar_holes = generate_spar_holes(spar_config, wing_config);
             for (spar = spar_holes) {
-                CreateSparTube(spar);
+                CreateSparTubeWithTransition(spar, wing_config);
             }
         }
         

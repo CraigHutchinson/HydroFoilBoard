@@ -120,7 +120,8 @@ module StructureSparGridConfigured(wing_config, spar_config)
                     (spar.rod_diameter == Spar_Rod_Large_Diameter ? 
                         grid_config.large_rod_thickness : grid_config.small_rod_thickness);
                 
-                translate([ x_pos, -root_chord / 3 / 2, 0 ]) color("orange")
+                // Center the spar bar on the actual spar position
+                translate([ x_pos - spar_thickness/2, -root_chord / 3 / 2, 0 ]) color("orange")
                     cube([ spar_thickness, root_chord / 3, wing_mm ]);
             }
             
