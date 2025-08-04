@@ -183,71 +183,45 @@ function get_airfoil_path(airfoil, reference_chord_mm = 100) =
 
 /**
  * Create an offset (inward or outward) version of an airfoil path for hollow wing construction
- * Creates a hollow interior cavity, allowing trailing edge to remain solid
- * @param airfoil - Airfoil object with path data
+ * Handles edge cases where chord length is too small relative to wall thickness
+ * Uses airfoil thickness information for intelligent offset limits
+ * @param airfoil - Airfoil object with path and thickness data
  * @param reference_chord_mm - Reference chord length in mm
  * @param wall_thickness - Offset distance in mm (positive = outward, negative = inward)
  * @param quality - Quality factor for offset smoothing (higher = smoother, default = 1)
- * @return offset airfoil path scaled to reference chord
+ * @return offset airfoil path scaled to reference chord, or empty list if too small
  */
 function get_offset_airfoil_path(airfoil, reference_chord_mm = 100, wall_thickness = -1.0, quality = 1) =
     let(
+        // Calculate actual airfoil thickness at this chord length
+        actual_max_thickness_mm = reference_chord_mm * airfoil.max_thickness_percent,
+        
+        // For inward offsets, ensure we don't exceed safe thickness limits
+        // Use conservative limit: offset should not exceed 40% of the airfoil thickness
+        max_safe_inward_offset = actual_max_thickness_mm * 0.4,
+        safe_wall_thickness = (wall_thickness < 0) ? 
+            max(-max_safe_inward_offset, wall_thickness) : wall_thickness,
+        
+        // Additional check: minimum chord should be at least 3x the wall thickness
+        min_chord_for_offset = abs(safe_wall_thickness) * 3,
+        
+        // If chord is too small, return empty path (no hollow interior)
+        chord_too_small = (reference_chord_mm < min_chord_for_offset),
+        
         // Start with the base airfoil path
-        base_path = get_airfoil_path(airfoil, reference_chord_mm),
-        
-        // For inward offsets, create hollow interior that stops before trailing edge
-        safe_offset_path = (wall_thickness < 0) ? 
-            get_hollow_interior_path(base_path, wall_thickness, reference_chord_mm) :
-            offset(base_path, delta=wall_thickness, closed=true, quality=quality)
-    ) safe_offset_path;
-
-/**
- * Create hollow interior path that avoids thin trailing edge region
- * This creates a cavity inside the airfoil but stops before the trailing edge gets too thin
- * @param base_path - Original airfoil path
- * @param wall_thickness - Negative wall thickness (inward offset)
- * @param reference_chord_mm - Chord length for calculations
- * @return hollow interior path
- */
-function get_hollow_interior_path(base_path, wall_thickness, reference_chord_mm) =
+        base_path = get_airfoil_path(airfoil, reference_chord_mm)
+    ) 
+    chord_too_small ? [] :
     let(
-        offset_distance = abs(wall_thickness),
+        // Try BOSL2 offset first, with error handling
+        offset_result = offset(base_path, r=safe_wall_thickness, closed=true, quality=quality),
         
-        // Find airfoil bounds
-        x_values = [for (pt = base_path) pt.x],
-        y_values = [for (pt = base_path) pt.y],
-        min_x = min(x_values),
-        max_x = max(x_values),
-        min_y = min(y_values),
-        max_y = max(y_values),
-        
-        // Define hollow region limits (avoid thin trailing edge)
-        hollow_start_x = min_x + offset_distance,
-        hollow_end_x = max_x - (offset_distance * 3), // Stop 3x wall thickness from trailing edge
-        
-        // Create simplified hollow interior shape
-        // Use a rounded rectangle or ellipse that fits inside the thicker part of the airfoil
-        chord_length = max_x - min_x,
-        thickness = max_y - min_y,
-        
-        // Calculate interior dimensions
-        interior_chord = max(5.0, chord_length - (offset_distance * 4)), // Minimum 5mm interior
-        interior_thickness = max(2.0, thickness - (offset_distance * 2)), // Minimum 2mm interior
-        
-        // Create interior shape centered in the thicker part of airfoil
-        center_x = min_x + chord_length * 0.4, // Slightly forward of center (thicker region)
-        center_y = (max_y + min_y) / 2,
-        
-        // Generate elliptical interior cavity
-        interior_path = [
-            for (i = [0:20]) // 20 points for smooth ellipse
-                let(
-                    angle = i * 360 / 20,
-                    x = center_x + (interior_chord / 2) * cos(angle),
-                    y = center_y + (interior_thickness / 2) * sin(angle)
-                ) [x, y]
-        ]
-    ) interior_path;
+        // Check if offset succeeded (non-empty result)
+        offset_valid = (len(offset_result) > 2)
+    ) 
+    offset_valid ? offset_result : 
+    // Fallback to scaled approach if offset fails
+    get_scaled_inward_airfoil_path(base_path, safe_wall_thickness, reference_chord_mm);
 
 /**
  * Create inward offset using scaling approach (safer than geometric offset)
@@ -259,19 +233,25 @@ function get_hollow_interior_path(base_path, wall_thickness, reference_chord_mm)
  */
 function get_scaled_inward_airfoil_path(base_path, wall_thickness, reference_chord_mm) =
     let(
-        // Calculate approximate scale factor based on chord and thickness
-        // This is an approximation that works well for typical airfoils
+        // Safety check: if chord is extremely small, return empty path
+        min_safe_chord = abs(wall_thickness) * 2,
+        chord_too_small = (reference_chord_mm < min_safe_chord)
+    )
+    chord_too_small ? [] :
+    let(
+        // Calculate more intelligent scale factors based on actual chord size
+        // For very small chords, use more conservative scaling
         chord_reduction = abs(wall_thickness * 2), // Reduce chord by 2x wall thickness
-        thickness_reduction = abs(wall_thickness), // Reduce thickness by wall thickness
         
-        scale_x = max(0.1, (reference_chord_mm - chord_reduction) / reference_chord_mm),
-        scale_y = max(0.1, 1 - (thickness_reduction / (reference_chord_mm * 0.12))), // Assume ~12% thick airfoil
+        // Use adaptive thickness reduction based on chord size
+        thickness_scale_factor = max(0.1, 1 - (abs(wall_thickness) / (reference_chord_mm * 0.08))), // Assume ~8% thick airfoil for small chords
+        chord_scale_factor = max(0.1, (reference_chord_mm - chord_reduction) / reference_chord_mm),
         
-        // Apply scaling
-        scaled_path = scale([scale_x, scale_y], p=base_path),
+        // Apply scaling with more conservative factors for small chords
+        scaled_path = scale([chord_scale_factor, thickness_scale_factor], p=base_path),
         
         // Adjust position to center the scaled airfoil properly
-        x_offset = (reference_chord_mm - reference_chord_mm * scale_x) / 2,
+        x_offset = (reference_chord_mm - reference_chord_mm * chord_scale_factor) / 2,
         final_path = move([x_offset, 0], p=scaled_path)
     ) final_path;
      
@@ -339,7 +319,13 @@ function create_airfoil_object(airfoil_slice_original, trailing_edge_thickness, 
         af_camber = [for (i = af_modified_slice) [i.x, (i.y + i.z) / 2]],
         
         // Create airfoil path from modified surface data
-        af_path = create_airfoil_path_from_slice( af_modified_slice )
+        af_path = create_airfoil_path_from_slice( af_modified_slice ),
+        
+        // Calculate maximum thickness directly from slice data
+        // Find the maximum difference between top and bottom surfaces
+        thickness_values = [for (i = af_modified_slice) abs(i.y - i.z)],
+        max_thickness_normalized = max(thickness_values), // Maximum thickness in normalized coordinates
+        max_thickness_percent = max_thickness_normalized // Already in decimal form (0-1) since normalized
     ) object(
         slice = af_modified_slice,
         trailing_edge_thickness = trailing_edge_thickness,
@@ -347,6 +333,9 @@ function create_airfoil_object(airfoil_slice_original, trailing_edge_thickness, 
         top = af_top,
         bottom = af_bottom,
         camber = af_camber,
+        
+        // Airfoil geometry information calculated from slice data
+        max_thickness_percent = max_thickness_percent, // Maximum thickness as fraction of chord (0-1)
 
         // Pre-resampled paths for preview mode
         path = true && $preview 

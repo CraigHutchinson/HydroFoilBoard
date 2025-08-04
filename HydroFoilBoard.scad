@@ -853,7 +853,7 @@ if (true /*dev*/ && $preview )
 {
     // Development mode - show hollow vs solid wing comparison
     if (Use_Hollow_Wing_Construction) {
-        front_half() {
+        front_half(s=main_wing_config.wing_mm*2)       
             main_wing();
             
             // Show solid wing in transparent red for comparison
@@ -866,7 +866,6 @@ if (true /*dev*/ && $preview )
                         wing_spar_holes(spar_holes);
                     }
                 }
-            }
         }
     } else {
         front_half() main_wing();

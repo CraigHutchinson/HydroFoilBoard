@@ -328,18 +328,31 @@ module CreateHollowWing(wing_config, wall_thickness=1.2, add_connections=false, 
         ];
         
         // Create inner wing profiles (offset inward by wall thickness)
-        inner_profiles = [
+        // Filter out empty paths that occur when chord is too small for offset
+        inner_profiles_all = [
             for (z_pos = z_positions) 
                 BuildHollowWingProfile(z_pos, wing_config, wall_thickness)
+        ];
+        
+        // Filter out empty profiles (where offset failed due to small chord)
+        inner_profiles = [
+            for (i = [0:len(inner_profiles_all)-1])
+                if (len(inner_profiles_all[i]) > 2) inner_profiles_all[i]
         ];
 
         // Use BOSL2-style diff() pattern to allow children to participate in boolean operations
         diff("wing_remove", "wing_keep") {
             union() {
                 // Main wing shell - difference between outer and inner profiles
-                difference() {
+                // Only create hollow interior if we have valid inner profiles
+                if (len(inner_profiles) > 1) {
+                    difference() {
+                        skin(outer_profiles, slices=0, refine=1, method="direct", sampling="segment");
+                        skin(inner_profiles, slices=0, refine=1, method="direct", sampling="segment");
+                    }
+                } else {
+                    // Fallback to solid wing if no valid inner profiles
                     skin(outer_profiles, slices=0, refine=1, method="direct", sampling="segment");
-                    skin(inner_profiles, slices=0, refine=1, method="direct", sampling="segment");
                 }
                 
                 // Add positive spar structures as solid geometry
