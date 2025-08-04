@@ -435,13 +435,31 @@ function BuildHollowWingProfile(z_pos, wing_config, wall_thickness) =
     ) ApplyWingTransforms(hollow_slice_data, wing_config);
 
 /**
- * Create positive spar structures for hollow wings
- * Use this as a child of CreateHollowWing to add solid spar geometry
+ * Create positive spar tube structures for hollow wings with integrated holes and grid
+ * Use this as a child of CreateHollowWing to add solid spar tube geometry with proper holes
+ * This creates individual spar tubes (cylinders), grid structure, and subtracts the actual spar holes
  */
 module hollow_wing_spars(spar_config, wing_config) {
-    // Create positive spar structures using the grid system but as solid geometry
-    StructureSparGridConfigured(wing_config, spar_config);
+    difference() {
+        union() {
+            // Add the grid structure (ribs and cross-members) as positive geometry
+            StructureSparGridConfigured(wing_config, spar_config);
+            
+            // Create individual spar tubes with extra material for holes
+            // Generate spar holes and use their position data to create tubes
+            spar_holes = generate_spar_holes(spar_config, wing_config);
+            for (spar = spar_holes) {
+                CreateSparTube(spar);
+            }
+        }
+        
+        // Subtract all spar holes from the combined structure using existing function
+        for (spar = generate_spar_holes(spar_config, wing_config)) {
+            CreateSparHole(spar);
+        }
+    }
 }
+
 module CreateWing(wing_config, add_connections=false, connection_length=4, wall_thickness=0.4, is_male_end=true) {
     
     // Calculate z positions using the exposed function

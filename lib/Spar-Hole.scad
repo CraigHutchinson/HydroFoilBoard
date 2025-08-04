@@ -46,6 +46,20 @@ module CreateSparHole(spar) {
     }
 }
 
+/**
+ * Create a spar tube (larger cylinder) to provide material around a spar hole
+ * Used for hollow wing construction to provide solid material for spar mounting
+ * @param spar - Spar hole configuration object with position and dimensions
+ */
+module CreateSparTube(spar) {
+    translate([spar.x, spar.offset, 0]) {
+        cylinder(
+            h = spar.length, 
+            d = spar.hole_diameter + 2.4 // Add 1.2mm wall thickness on each side (2 * 1.2 = 2.4)
+        );
+    }
+}
+
 module CreateSparVoid(spar) {
     translate([0, spar.offset, 0]) 
     union() {
