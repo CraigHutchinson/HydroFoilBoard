@@ -659,9 +659,11 @@ module main_wing() {
         CreateHollowWing(main_wing_config, Wing_Shell_Thickness, add_connections=false) {
             // Internal structures - automatically get anhedral compensation rotation
             down(fuselage_rod_od.x/2) {
-                if (add_inner_grid && false) {
-                    // Add positive spar structures for hollow wing
-                    hollow_wing_spars(main_wing_spar_config, main_wing_config);
+                if (add_inner_grid ) {
+                    // Add solid spar structures by subtracting from inner cavity
+                    wing_intersect() {
+                        hollow_wing_spars(main_wing_spar_config, main_wing_config);
+                    }
                 }
             }
         }
@@ -853,7 +855,7 @@ if (true /*dev*/ && $preview )
 {
     // Development mode - show hollow vs solid wing comparison
     if (Use_Hollow_Wing_Construction) {
-        front_half(s=main_wing_config.wing_mm*2)       
+     front_half(s=main_wing_config.wing_mm*2)       
             main_wing();
             
             // Show solid wing in transparent red for comparison

@@ -24,9 +24,11 @@
  * 
  * BOSL2-STYLE CHILDREN INTERFACE:
  * - CreateWing() accepts children for internal structures using BOSL2 diff() pattern
+ * - CreateHollowWing() subtracts spar structures from inner cavity (leaves spars as solid material)
  * - Children are automatically rotated with anhedral compensation
  * - Use wing_internals() for structures to add (grid, ribs)
- * - Use wing_remove() for features to subtract (holes, voids) 
+ * - Use wing_intersect() for structures that remain solid in hollow wing (subtracted from inner cavity)
+ * - Use wing_remove() for features to subtract from wing (holes, voids)
  * - Use wing_spar_holes(array) for convenient spar hole addition
  * 
  * USAGE EXAMPLES:
@@ -34,6 +36,10 @@
  *     wing_internals() { StructureGrid(...); }
  *     wing_spar_holes(spar_holes_array);
  *     wing_remove() { CustomVoid(); }
+ * }
+ * 
+ * CreateHollowWing(wing_config, wall_thickness) {
+ *     wing_intersect() { hollow_wing_spars(...); }  // Spars remain solid (subtracted from inner cavity)
  * }
  */
 
@@ -344,24 +350,27 @@ module CreateHollowWing(wing_config, wall_thickness=1.2, add_connections=false, 
                 if (len(inner_profiles_all[i]) > 2) inner_profiles_all[i]
         ];
 
-        // Use BOSL2-style diff() pattern to allow children to participate in boolean operations
+        // Use BOSL2-style diff() pattern for boolean operations
         diff("wing_remove", "wing_keep") {
-            union() {
-                // Main wing shell - difference between outer and inner profiles
-                // Only create hollow interior if we have valid inner profiles
-                if (len(inner_profiles) > 1) {
-                    difference() {
-                        skin(outer_profiles, slices=0, refine=1, method="direct", sampling="segment");
-                        skin(inner_profiles, slices=0, refine=1, method="direct", sampling="segment");
-                    }
-                } else {
-                    // Fallback to solid wing if no valid inner profiles
+            // Main wing shell - create as difference of outer and inner skins
+            if (len(inner_profiles) > 1) {
+                // Create the basic hollow wing shell
+                difference() {
                     skin(outer_profiles, slices=0, refine=1, method="direct", sampling="segment");
+                    // The inner cavity will have spar structures subtracted from it
+                    diff("spar_remove", "spar_keep") {
+                        skin(inner_profiles, slices=0, refine=1, method="direct", sampling="segment");
+                        // Subtract spar structures from inner cavity - this leaves spar material as solid
+                        tag("spar_remove") children();
+                    }
                 }
-                
-                // Add positive spar structures as solid geometry
-                tag("wing_keep") children();
+            } else {
+                // Fallback to solid wing if no valid inner profiles
+                skin(outer_profiles, slices=0, refine=1, method="direct", sampling="segment");
             }
+            
+            // Add unconstrained positive geometry (connectors, etc.)
+            tag("wing_keep") union() {}
             
             // Add male connector at end if needed
             if (add_connections && bounds.end_z < wing_config.wing_mm && is_male_end) {
@@ -504,6 +513,15 @@ module CreateWing(wing_config, add_connections=false, connection_length=4, wall_
  */
 module wing_internals() {
     tag("wing_keep") children();
+}
+
+/**
+ * Add structures to hollow wing that remain as solid material (spars, reinforcements, etc.)
+ * Use this as a child of CreateHollowWing to subtract structures from the inner cavity
+ * This leaves the spar structures as solid material in the final wing
+ */
+module wing_intersect() {
+    tag("spar_remove") children();
 }
 
 /**
