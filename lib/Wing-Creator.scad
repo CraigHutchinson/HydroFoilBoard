@@ -328,13 +328,17 @@ module CreateHollowWing(wing_config, wall_thickness=1.2, add_connections=false, 
         ];
         
         // Create inner wing profiles (offset inward by wall thickness)
+        // Stop hollow cavity wall_thickness distance from wing tip for solid tip structure
+        hollow_end_z = wing_config.wing_mm - wall_thickness;
+        
         // Filter out empty paths that occur when chord is too small for offset
         inner_profiles_all = [
             for (z_pos = z_positions) 
-                BuildHollowWingProfile(z_pos, wing_config, wall_thickness)
+                if (z_pos <= hollow_end_z) BuildHollowWingProfile(z_pos, wing_config, wall_thickness)
+                else []  // Empty profile for positions beyond hollow end
         ];
         
-        // Filter out empty profiles (where offset failed due to small chord)
+        // Filter out empty profiles (where offset failed due to small chord or beyond hollow end)
         inner_profiles = [
             for (i = [0:len(inner_profiles_all)-1])
                 if (len(inner_profiles_all[i]) > 2) inner_profiles_all[i]
