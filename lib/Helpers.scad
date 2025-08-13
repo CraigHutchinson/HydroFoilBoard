@@ -169,7 +169,7 @@ function normalize_airfoil(original_slice) =
 function get_airfoil_path(airfoil, reference_chord_mm = 100) =
     let(
         reference_scale = reference_chord_mm, // Scale factor for reference chord
-        base_path = $preview 
+        base_path =  true || $preview 
             ? airfoil.path 
             : let(
                     // Modify the airfoil slice for printing, ensuring correct trailing edge thickness
@@ -307,7 +307,7 @@ function create_airfoil_object(airfoil_slice_original, trailing_edge_thickness, 
 
         // Modify airfoil slice data for 3D printing
         // NOTE: We only scale the source airfoil on preview but scale on slice-by-slice for render
-        af_modified_slice = true && $preview 
+        af_modified_slice =  true || $preview 
             ? modify_airfoil_slice_for_printing(af_nslice, trailing_edge_thickness, reference_chord_mm) 
             : af_nslice,
         
@@ -338,7 +338,7 @@ function create_airfoil_object(airfoil_slice_original, trailing_edge_thickness, 
         max_thickness_percent = max_thickness_percent, // Maximum thickness as fraction of chord (0-1)
 
         // Pre-resampled paths for preview mode
-        path = true && $preview 
+        path = true || $preview 
             ? resample_path(af_path, n=30, keep_corners=10, closed=true) 
             : af_path
     );

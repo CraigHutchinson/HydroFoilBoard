@@ -24,12 +24,12 @@ Trailing_Edge_Thickness = 2 * (Printer_NozzleDiameter * Printer_MinimumWallFract
 
 /* [Global Rendering Settings] */
 // 360deg/5(faceAngle) = 72 facets (affects performance and object smoothness)
-Render_Mode_Facet_Angle = 1.0; // [0.1:0.1:10]
+Render_Mode_Facet_Angle = 5.0; // [0.1:0.1:10]
 // Minimum facet size for rendering (NOTE: coarse value is udef for preview mode)
-Render_Mode_Facet_Size = 0.2; // [0.01:0.01:1.0]
+Render_Mode_Facet_Size = 0.4; // [0.01:0.01:1.0]
 
-$fa = $preview ? 10 : Render_Mode_Facet_Angle;            // 360deg/5($fa) = 60 facets (affects performance and object smoothness)
-$fs = $preview ? 1 : Render_Mode_Facet_Size;       // Min facet size (lower for final render)
+$fa = true || $preview ? 10 : Render_Mode_Facet_Angle;            // 360deg/5($fa) = 60 facets (affects performance and object smoothness)
+$fs = true || $preview ? 1 : Render_Mode_Facet_Size;       // Min facet size (lower for final render)
 
 /* [Build Configuration] */
 // Render test parts for checking 3D printing settings
@@ -71,6 +71,7 @@ Design_For_VaseMode = false;
 // - Easier calibration by adjusting wall thickness
 // - Stronger structure with integral spar elements
 // - More material efficient (only print what's needed)
+// DIAGNOSTIC: Set to false to test if hollow wing construction is causing render freeze
 Use_Hollow_Wing_Construction = true;
 // Wing shell thickness for hollow construction (mm)
 Wing_Shell_Thickness = 1.2; // [0.4:0.1:3.0]
@@ -98,7 +99,7 @@ Main_Wing_Root_Chord_Scale_Factor = (4 - (Main_Wing_Eliptic_Pow - 2.0)/2)/PI;
 
 // Main Wing dimensions
 // Number of main wing sections (more = higher resolution)
-Main_Wing_Sections = $preview ? 20 : 100; // [10:5:150]
+Main_Wing_Sections = true || $preview ? 20 : 100; // [10:5:150]
 Main_Wing_mm = (Main_Wing_span / 2) * Build_Scale;         // Main wing length in mm (half span)
 Main_Wing_Root_Chord_MM = Main_Wing_Average_Chord * Main_Wing_Root_Chord_Scale_Factor * Build_Scale;   // Root chord length in mm (calculated from average chord)
 // Main wing tip chord length in mm (not relevant for elliptic wing)
@@ -223,7 +224,7 @@ Rear_Wing_Chord = Rear_Wing_Span / Rear_Wing_Aspect; // 75mm avg chord (300/4.0)
 
 // Rear Wing dimensions
 // Number of rear wing sections (more = higher resolution)
-Rear_Wing_sections = $preview ? 15 : 75; // [8:3:100]
+Rear_Wing_sections = true || $preview ? 15 : 75; // [8:3:100]
 Rear_Wing_mm = (Rear_Wing_Span / 2) * Build_Scale;         // Rear wing length in mm (half span)
 Rear_Wing_root_chord_mm = Rear_Wing_Chord * Build_Scale;   // Rear root chord length in mm
 // Rear wing tip chord length in mm (not relevant for elliptic wing)
@@ -670,9 +671,18 @@ module main_wing() {
             // Internal structures - automatically get anhedral compensation rotation
             down(fuselage_rod_od.x/2) {
                 if (add_inner_grid ) {
-                    // Add solid spar structures by subtracting from inner cavity
-                    wing_intersect() {
-                        hollow_wing_spars(main_wing_spar_config, main_wing_config);
+                    // DIAGNOSTIC: Temporarily disable complex spar structures to test render performance
+                    // Comment this out to test if hollow wing shell alone renders fine
+                    if (true) { // Set to true to enable full spar structures
+                        wing_intersect() {
+                            hollow_wing_spars(main_wing_spar_config, main_wing_config);
+                        }
+                    } else {
+                        // Minimal test: just add a simple cube to verify hollow wing works
+                        wing_intersect() {
+                            echo("DIAGNOSTIC: Using minimal internal structure for testing");
+                            translate([50, 0, 50]) cube([10, 5, 100]);
+                        }
                     }
                 }
             }
@@ -861,7 +871,7 @@ echo("========================================");
     echo("ERROR: add_inner_grid needs to be true for spar_hole to be true");
 }*/
 
-if (true /*dev*/ && $preview )
+if (false /*dev*/ && $preview )
 {
     // Development mode - show hollow vs solid wing comparison
     if (Use_Hollow_Wing_Construction) {
@@ -1017,6 +1027,13 @@ if ($preview && Preview_BuiltModel) {
 else 
 {
     // Render mode - split into printable parts using wing configuration
+    // DIAGNOSTIC: Test if hollow wing construction is causing the freeze
+    echo("=== RENDER MODE DIAGNOSTIC ===");
+    echo(str("Use_Hollow_Wing_Construction: ", Use_Hollow_Wing_Construction));
+    echo(str("Number of spar configs: ", len(main_wing_spar_config.spars)));
+    echo(str("Number of individual spar holes: ", len(generate_spar_holes(main_wing_spar_config, main_wing_config))));
+    echo("Starting render...");
+    
     split_print(main_wing_config.print) main_wing();
 }
 
