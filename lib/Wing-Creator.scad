@@ -125,26 +125,22 @@ function CalculateWingSliceData(z_pos, wing_config) =
  */
 function ApplyWingTransforms(slice_data, wing_config) =
     let(
-
-        // Apply scaling and translation using BOSL2 transforms
+        // Check if scaled_path has data (length > 0)
         scaled_path = slice_data.scaled_path,
-        
-        // Apply washout rotation if needed (using normalized positions)
-        washout_path = (wing_config.washout.degrees > 0 && slice_data.nz > wing_config.washout.start_nz) ?
-            ApplyWashoutToPath(scaled_path, slice_data.nz, wing_config.washout.start_nz, slice_data.current_chord_mm, wing_config.washout.degrees, wing_config.washout.pivot_nx) :
-            scaled_path,
-
-        // Create 3D path first
-        path_3d = path3d(washout_path, 0),
-        
-        // Apply anhedral rotation around x-axis (rotate the 3D airfoil section)
-        rotated_path_3d = (slice_data.anhedral.angle != 0) ? 
-            xrot(slice_data.anhedral.angle, p=path_3d ) : path_3d,
-        
-        // Apply anhedral y-offset using BOSL2 transform and wing shape-x
-        final_path = move([wing_config.center_line_nx * (wing_config.chord_profile.root_chord_mm - slice_data.current_chord_mm)
-            , slice_data.anhedral.y_offset
-            , slice_data.nz * wing_config.wing_mm], p=rotated_path_3d)
+        has_data = (is_list(scaled_path) && len(scaled_path) > 0),
+        // If no data, return empty list
+        washout_path = has_data ? (
+            (wing_config.washout.degrees > 0 && slice_data.nz > wing_config.washout.start_nz) ?
+                ApplyWashoutToPath(scaled_path, slice_data.nz, wing_config.washout.start_nz, slice_data.current_chord_mm, wing_config.washout.degrees, wing_config.washout.pivot_nx)
+                : scaled_path
+        ) : [],
+        path_3d = has_data ? path3d(washout_path, 0) : [],
+        rotated_path_3d = (has_data && slice_data.anhedral.angle != 0) ? xrot(slice_data.anhedral.angle, p=path_3d ) : path_3d,
+        final_path = has_data ? move([
+            wing_config.center_line_nx * (wing_config.chord_profile.root_chord_mm - slice_data.current_chord_mm),
+            slice_data.anhedral.y_offset,
+            slice_data.nz * wing_config.wing_mm
+        ], p=rotated_path_3d) : []
     ) final_path;
 
 /**

@@ -169,7 +169,7 @@ function normalize_airfoil(original_slice) =
 function get_airfoil_path(airfoil, reference_chord_mm = 100) =
     let(
         reference_scale = reference_chord_mm, // Scale factor for reference chord
-        base_path = (Render_Mode_Fast_AeroFoil || $preview)  
+        base_path = (Render_Mode_Fast_PrecomputeAeroFoil || $preview)  
             ? airfoil.path 
             : let(
                     // Modify the airfoil slice for printing, ensuring correct trailing edge thickness
@@ -178,7 +178,7 @@ function get_airfoil_path(airfoil, reference_chord_mm = 100) =
                 )
                 create_airfoil_path_from_slice( modified_slice ),
             // Scale the path to the current chord length
-        scaled_path = scale([reference_scale, reference_scale], p=base_path)
+        scaled_path = scale([reference_scale, reference_scale], p=base_path),
     ) scaled_path;
 
 /**
@@ -194,67 +194,16 @@ function get_airfoil_path(airfoil, reference_chord_mm = 100) =
 function get_offset_airfoil_path(airfoil, reference_chord_mm = 100, wall_thickness = -1.0, quality = 1) =
     let(
         // Calculate actual airfoil thickness at this chord length
-        actual_max_thickness_mm = reference_chord_mm * airfoil.max_thickness_percent,
-        
-        // For inward offsets, ensure we don't exceed safe thickness limits
-        // Use conservative limit: offset should not exceed 40% of the airfoil thickness
-        max_safe_inward_offset = actual_max_thickness_mm * 0.4,
-        safe_wall_thickness = (wall_thickness < 0) ? 
-            max(-max_safe_inward_offset, wall_thickness) : wall_thickness,
-        
-        // Additional check: minimum chord should be at least 3x the wall thickness
-        min_chord_for_offset = abs(safe_wall_thickness) * 3,
-        
+        actual_max_thickness_mm = reference_chord_mm * airfoil.max_thickness_normalized,
+                       
         // If chord is too small, return empty path (no hollow interior)
-        chord_too_small = (reference_chord_mm < min_chord_for_offset),
+        chord_too_small = (wall_thickness*-3 > actual_max_thickness_mm),
         
         // Start with the base airfoil path
-        base_path = get_airfoil_path(airfoil, reference_chord_mm)
+        offset_path = chord_too_small ? [] : offset(base_path, r=wall_thickness, closed=true, quality=quality)
     ) 
-    chord_too_small ? [] :
-    let(
-        // Try BOSL2 offset first, with error handling
-        offset_result = offset(base_path, r=safe_wall_thickness, closed=true, quality=quality),
-        
-        // Check if offset succeeded (non-empty result)
-        offset_valid = (len(offset_result) > 2)
-    ) 
-    offset_valid ? offset_result : 
-    // Fallback to scaled approach if offset fails
-    get_scaled_inward_airfoil_path(base_path, safe_wall_thickness, reference_chord_mm);
+    offset_path;    
 
-/**
- * Create inward offset using scaling approach (safer than geometric offset)
- * This scales the airfoil slightly smaller and adjusts position to maintain wall thickness
- * @param base_path - Original airfoil path
- * @param wall_thickness - Negative wall thickness (inward offset)
- * @param reference_chord_mm - Chord length for thickness calculations
- * @return scaled and repositioned airfoil path
- */
-function get_scaled_inward_airfoil_path(base_path, wall_thickness, reference_chord_mm) =
-    let(
-        // Safety check: if chord is extremely small, return empty path
-        min_safe_chord = abs(wall_thickness) * 2,
-        chord_too_small = (reference_chord_mm < min_safe_chord)
-    )
-    chord_too_small ? [] :
-    let(
-        // Calculate more intelligent scale factors based on actual chord size
-        // For very small chords, use more conservative scaling
-        chord_reduction = abs(wall_thickness * 2), // Reduce chord by 2x wall thickness
-        
-        // Use adaptive thickness reduction based on chord size
-        thickness_scale_factor = max(0.1, 1 - (abs(wall_thickness) / (reference_chord_mm * 0.08))), // Assume ~8% thick airfoil for small chords
-        chord_scale_factor = max(0.1, (reference_chord_mm - chord_reduction) / reference_chord_mm),
-        
-        // Apply scaling with more conservative factors for small chords
-        scaled_path = scale([chord_scale_factor, thickness_scale_factor], p=base_path),
-        
-        // Adjust position to center the scaled airfoil properly
-        x_offset = (reference_chord_mm - reference_chord_mm * chord_scale_factor) / 2,
-        final_path = move([x_offset, 0], p=scaled_path)
-    ) final_path;
-     
 // Function to modify airfoil data for 3D printing compatibility
 // This function modifies both path and slice data consistently
 // reference_chord is used to determine a scale for thickness calculation from normalized airfoil data
@@ -307,7 +256,7 @@ function create_airfoil_object(airfoil_slice_original, trailing_edge_thickness, 
 
         // Modify airfoil slice data for 3D printing
         // NOTE: We only scale the source airfoil on preview but scale on slice-by-slice for render
-        af_modified_slice = (Render_Mode_Fast_AeroFoil || $preview)
+        af_modified_slice = (Render_Mode_Fast_PrecomputeAeroFoil || $preview)
             ? modify_airfoil_slice_for_printing(af_nslice, trailing_edge_thickness, reference_chord_mm) 
             : af_nslice,
         
@@ -325,7 +274,6 @@ function create_airfoil_object(airfoil_slice_original, trailing_edge_thickness, 
         // Find the maximum difference between top and bottom surfaces
         thickness_values = [for (i = af_modified_slice) abs(i.y - i.z)],
         max_thickness_normalized = max(thickness_values), // Maximum thickness in normalized coordinates
-        max_thickness_percent = max_thickness_normalized // Already in decimal form (0-1) since normalized
     ) object(
         slice = af_modified_slice,
         trailing_edge_thickness = trailing_edge_thickness,
@@ -335,10 +283,10 @@ function create_airfoil_object(airfoil_slice_original, trailing_edge_thickness, 
         camber = af_camber,
         
         // Airfoil geometry information calculated from slice data
-        max_thickness_percent = max_thickness_percent, // Maximum thickness as fraction of chord (0-1)
+        max_thickness_normalized = max_thickness_normalized, // Maximum thickness as fraction of chord (0-1)
 
         // Pre-resampled paths for preview mode
-        path = (Render_Mode_Fast_AeroFoil || $preview) 
+        path = (Render_Mode_Fast_ResampleAeroFoil || $preview) 
             ? resample_path(af_path, n=30, keep_corners=10, closed=true) 
             : af_path
     );

@@ -23,13 +23,16 @@ Printer_MinimumWallFraction = 0.65; // Minimum wall thickness for printing as fr
 Trailing_Edge_Thickness = 2 * (Printer_NozzleDiameter * Printer_MinimumWallFraction); // mm
 
 /* [Global Rendering Settings] */
-// 360deg/5(faceAngle) = 72 facets (affects performance and object smoothness)
-Render_Mode_Facet_Angle = 5.0; // [0.1:0.1:10]
+// 360deg/2(faceAngle) = 180 facets (affects performance and object smoothness)
+Render_Mode_Facet_Angle = 2.0; // [0.1:0.1:10]
 // Minimum facet size for rendering (NOTE: coarse value is udef for preview mode)
 Render_Mode_Facet_Size = 0.4; // [0.01:0.01:1.0]
 
 // TODO: FixMe-Hang hollow-wing .. Enable using fast airfoil rendering mode (uses pre-computed paths for performance)
-Render_Mode_Fast_AeroFoil = true; // [true:false]
+Render_Mode_Fast_PrecomputeAeroFoil = true; // [true:false]
+
+// Enable using lower detail aerofoil rendering mode (uses fewer points for performance)
+Render_Mode_Fast_ResampleAeroFoil = false; // [true:false]  
 
 // Enable using fast wing slices rendering mode (uses fewer wing slices for performance)
 Render_Mode_Fast_WingSlices = false; // [true:false]
@@ -37,8 +40,8 @@ Render_Mode_Fast_WingSlices = false; // [true:false]
 // Enable using lower resolution primitive facets for performance
 Render_Mode_Fast_Facets = false; // [true:false]
 
-$fa = Render_Mode_Fast_Facets || $preview ? 10 : Render_Mode_Facet_Angle;            // 360deg/5($fa) = 60 facets (affects performance and object smoothness)
-$fs = Render_Mode_Fast_Facets || $preview ? 1 : Render_Mode_Facet_Size;       // Min facet size (lower for final render)
+$fa = (Render_Mode_Fast_Facets || $preview) ? 10 : Render_Mode_Facet_Angle;            // 360deg/5($fa) = 60 facets (affects performance and object smoothness)
+$fs = (Render_Mode_Fast_Facets || $preview) ? 1 : Render_Mode_Facet_Size;       // Min facet size (lower for final render)
 
 /* [Build Configuration] */
 // Render test parts for checking 3D printing settings
