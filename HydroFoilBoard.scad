@@ -28,8 +28,17 @@ Render_Mode_Facet_Angle = 5.0; // [0.1:0.1:10]
 // Minimum facet size for rendering (NOTE: coarse value is udef for preview mode)
 Render_Mode_Facet_Size = 0.4; // [0.01:0.01:1.0]
 
-$fa = true || $preview ? 10 : Render_Mode_Facet_Angle;            // 360deg/5($fa) = 60 facets (affects performance and object smoothness)
-$fs = true || $preview ? 1 : Render_Mode_Facet_Size;       // Min facet size (lower for final render)
+// TODO: FixMe-Hang hollow-wing .. Enable using fast airfoil rendering mode (uses pre-computed paths for performance)
+Render_Mode_Fast_AeroFoil = true; // [true:false]
+
+// Enable using fast wing slices rendering mode (uses fewer wing slices for performance)
+Render_Mode_Fast_WingSlices = false; // [true:false]
+
+// Enable using lower resolution primitive facets for performance
+Render_Mode_Fast_Facets = false; // [true:false]
+
+$fa = Render_Mode_Fast_Facets || $preview ? 10 : Render_Mode_Facet_Angle;            // 360deg/5($fa) = 60 facets (affects performance and object smoothness)
+$fs = Render_Mode_Fast_Facets || $preview ? 1 : Render_Mode_Facet_Size;       // Min facet size (lower for final render)
 
 /* [Build Configuration] */
 // Render test parts for checking 3D printing settings
@@ -99,7 +108,7 @@ Main_Wing_Root_Chord_Scale_Factor = (4 - (Main_Wing_Eliptic_Pow - 2.0)/2)/PI;
 
 // Main Wing dimensions
 // Number of main wing sections (more = higher resolution)
-Main_Wing_Sections = true || $preview ? 20 : 100; // [10:5:150]
+Main_Wing_Sections = (Render_Mode_Fast_WingSlices || $preview) ? 20 : 100; // [10:5:150]
 Main_Wing_mm = (Main_Wing_span / 2) * Build_Scale;         // Main wing length in mm (half span)
 Main_Wing_Root_Chord_MM = Main_Wing_Average_Chord * Main_Wing_Root_Chord_Scale_Factor * Build_Scale;   // Root chord length in mm (calculated from average chord)
 // Main wing tip chord length in mm (not relevant for elliptic wing)
@@ -224,7 +233,7 @@ Rear_Wing_Chord = Rear_Wing_Span / Rear_Wing_Aspect; // 75mm avg chord (300/4.0)
 
 // Rear Wing dimensions
 // Number of rear wing sections (more = higher resolution)
-Rear_Wing_sections = true || $preview ? 15 : 75; // [8:3:100]
+Rear_Wing_sections = (Render_Mode_Fast_WingSlices || $preview) ? 15 : 75; // [8:3:100]
 Rear_Wing_mm = (Rear_Wing_Span / 2) * Build_Scale;         // Rear wing length in mm (half span)
 Rear_Wing_root_chord_mm = Rear_Wing_Chord * Build_Scale;   // Rear root chord length in mm
 // Rear wing tip chord length in mm (not relevant for elliptic wing)
