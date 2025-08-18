@@ -169,14 +169,17 @@ function normalize_airfoil(original_slice) =
 function get_airfoil_path(airfoil, reference_chord_mm = 100) =
     let(
         reference_scale = reference_chord_mm, // Scale factor for reference chord
+
         base_path = (Render_Mode_Fast_PrecomputeAeroFoil || $preview)  
-            ? airfoil.path 
+            ? ((Render_Mode_Fast_ResampleAeroFoil || $preview) ? airfoil.preview_path : airfoil.render_path)
             : let(
                     // Modify the airfoil slice for printing, ensuring correct trailing edge thickness
                     modified_slice = modify_airfoil_slice_for_printing(airfoil.slice, airfoil.trailing_edge_thickness, reference_chord_mm),
-                   // t = echo("Ref: ", airfoil.slice, " modified slice: ", modified_slice, "")
-                )
-                create_airfoil_path_from_slice( modified_slice ),
+                    full_path = create_airfoil_path_from_slice( modified_slice ),
+                    sampled_path = (Render_Mode_Fast_ResampleAeroFoil || $preview) ? 
+                        resample_path(full_path, n=30, keep_corners=10, closed=true)
+                        : full_path
+                ) sampled_path,
             // Scale the path to the current chord length
         scaled_path = scale([reference_scale, reference_scale], p=base_path),
     ) scaled_path;
@@ -199,6 +202,8 @@ function get_offset_airfoil_path(airfoil, reference_chord_mm = 100, wall_thickne
         // If chord is too small, return empty path (no hollow interior)
         chord_too_small = (wall_thickness*-3 > actual_max_thickness_mm),
         
+        base_path = get_airfoil_path(airfoil, reference_chord_mm),
+
         // Start with the base airfoil path
         offset_path = chord_too_small ? [] : offset(base_path, r=wall_thickness, closed=true, quality=quality)
     ) 
@@ -248,8 +253,11 @@ function get_airfoil_at_nz(nz, airfoil_config) =
 // airfoil_slice_original: Original airfoil slice data from airfoil library
 // trailing_edge_thickness: Minimum trailing edge thickness for 3D printing
 // Returns an object containing all airfoil components (top, bottom, mid, path, preview paths)
-function create_airfoil_object(airfoil_slice_original, trailing_edge_thickness, reference_chord_mm = 100) = 
+function create_airfoil_object(airfoil_slice_original, trailing_edge_thickness ) = 
     let(
+        // Precompute trailing edge thickness for preview
+        reference_chord_mm = 100,
+
         af_nslice = normalize_airfoil(airfoil_slice_original),
         
         //_ = echo("Normalized airfoil slice: ", af_nslice),
@@ -285,10 +293,8 @@ function create_airfoil_object(airfoil_slice_original, trailing_edge_thickness, 
         // Airfoil geometry information calculated from slice data
         max_thickness_normalized = max_thickness_normalized, // Maximum thickness as fraction of chord (0-1)
 
-        // Pre-resampled paths for preview mode
-        path = (Render_Mode_Fast_ResampleAeroFoil || $preview) 
-            ? resample_path(af_path, n=30, keep_corners=10, closed=true) 
-            : af_path
+        render_path = af_path,
+        preview_path = resample_path(af_path, n=30, keep_corners=10, closed=true)   
     );
 
 // Helper function to access airfoil surface data

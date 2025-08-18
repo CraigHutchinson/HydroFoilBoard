@@ -32,7 +32,7 @@ Render_Mode_Facet_Size = 0.4; // [0.01:0.01:1.0]
 Render_Mode_Fast_PrecomputeAeroFoil = true; // [true:false]
 
 // Enable using lower detail aerofoil rendering mode (uses fewer points for performance)
-Render_Mode_Fast_ResampleAeroFoil = false; // [true:false]  
+Render_Mode_Fast_ResampleAeroFoil = true; // [true:false]  
 
 // Enable using fast wing slices rendering mode (uses fewer wing slices for performance)
 Render_Mode_Fast_WingSlices = false; // [true:false]
@@ -149,9 +149,9 @@ tip_airfoil_change_perc = 100; // [0:100]
  af_root = create_airfoil_object(airfoil_E818_slice(), Trailing_Edge_Thickness);
 
 //Legacy support
-af_vec_path_root = af_root.path;
-af_vec_path_mid = af_root.path;
-af_vec_path_tip = af_root.path;
+af_vec_path_root = af_root.render_path;
+af_vec_path_mid = af_root.render_path;
+af_vec_path_tip = af_root.render_path;
 
 // Airfoil bounding box
 af_bbox = airfoil_E818_range();
