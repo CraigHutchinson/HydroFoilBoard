@@ -28,10 +28,10 @@ Render_Mode_Facet_Angle = 2.0; // [0.1:0.1:10]
 // Minimum facet size for rendering (NOTE: coarse value is udef for preview mode)
 Render_Mode_Facet_Size = 0.4; // [0.01:0.01:1.0]
 
-// TODO: FixMe-Hang hollow-wing .. Enable using fast airfoil rendering mode (uses pre-computed paths for performance)
-Render_Mode_Fast_PrecomputeAeroFoil = true; // [true:false]
+// Enable using fast airfoil rendering mode (uses pre-computed paths for performance)
+Render_Mode_Fast_PrecomputeAeroFoil = false; // [true:false]
 
-// Enable using lower detail aerofoil rendering mode (uses fewer points for performance)
+// TODO: FixMe-Hang hollow-wing ..  Enable using lower detail aerofoil rendering mode (uses fewer points for performance)
 Render_Mode_Fast_ResampleAeroFoil = true; // [true:false]  
 
 // Enable using fast wing slices rendering mode (uses fewer wing slices for performance)
@@ -149,9 +149,9 @@ tip_airfoil_change_perc = 100; // [0:100]
  af_root = create_airfoil_object(airfoil_E818_slice(), Trailing_Edge_Thickness);
 
 //Legacy support
-af_vec_path_root = af_root.render_path;
-af_vec_path_mid = af_root.render_path;
-af_vec_path_tip = af_root.render_path;
+af_vec_path_root = af_root.presampled_path;
+af_vec_path_mid = af_root.presampled_path;
+af_vec_path_tip = af_root.presampled_path;
 
 // Airfoil bounding box
 af_bbox = airfoil_E818_range();
@@ -683,18 +683,8 @@ module main_wing() {
             // Internal structures - automatically get anhedral compensation rotation
             down(fuselage_rod_od.x/2) {
                 if (add_inner_grid ) {
-                    // DIAGNOSTIC: Temporarily disable complex spar structures to test render performance
-                    // Comment this out to test if hollow wing shell alone renders fine
-                    if (true) { // Set to true to enable full spar structures
-                        wing_intersect() {
-                            hollow_wing_spars(main_wing_spar_config, main_wing_config);
-                        }
-                    } else {
-                        // Minimal test: just add a simple cube to verify hollow wing works
-                        wing_intersect() {
-                            echo("DIAGNOSTIC: Using minimal internal structure for testing");
-                            translate([50, 0, 50]) cube([10, 5, 100]);
-                        }
+                   wing_intersect() {
+                        hollow_wing_spars(main_wing_spar_config, main_wing_config);
                     }
                 }
             }

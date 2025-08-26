@@ -151,7 +151,7 @@ function create_airfoil_path_from_slice(slice) =
         af_bottom = [for (i = slice) [i.x, i.z]],    // Bottom surface line
 
         // Reverse bottom surface to create continuous path
-        bottom_reversed = [for (i = [len(af_bottom) - 2 : -1 : 0]) af_bottom[i]],
+        bottom_reversed = [for (i = [len(af_bottom) - 2 : -1 : 1]) af_bottom[i]],
 
         // Combine top and bottom surfaces into single path
         combined_path = concat(af_top, bottom_reversed)
@@ -168,10 +168,8 @@ function normalize_airfoil(original_slice) =
 
 function get_airfoil_path(airfoil, reference_chord_mm = 100) =
     let(
-        reference_scale = reference_chord_mm, // Scale factor for reference chord
-
         base_path = (Render_Mode_Fast_PrecomputeAeroFoil || $preview)  
-            ? ((Render_Mode_Fast_ResampleAeroFoil || $preview) ? airfoil.preview_path : airfoil.render_path)
+            ? airfoil.presampled_path
             : let(
                     // Modify the airfoil slice for printing, ensuring correct trailing edge thickness
                     modified_slice = modify_airfoil_slice_for_printing(airfoil.slice, airfoil.trailing_edge_thickness, reference_chord_mm),
@@ -181,7 +179,7 @@ function get_airfoil_path(airfoil, reference_chord_mm = 100) =
                         : full_path
                 ) sampled_path,
             // Scale the path to the current chord length
-        scaled_path = scale([reference_scale, reference_scale], p=base_path),
+        scaled_path = scale([reference_chord_mm, reference_chord_mm], p=base_path),
     ) scaled_path;
 
 /**
@@ -264,26 +262,26 @@ function create_airfoil_object(airfoil_slice_original, trailing_edge_thickness )
 
         // Modify airfoil slice data for 3D printing
         // NOTE: We only scale the source airfoil on preview but scale on slice-by-slice for render
-        af_modified_slice = (Render_Mode_Fast_PrecomputeAeroFoil || $preview)
+        af_precomputed_slice = (Render_Mode_Fast_PrecomputeAeroFoil || $preview)
             ? modify_airfoil_slice_for_printing(af_nslice, trailing_edge_thickness, reference_chord_mm) 
             : af_nslice,
         
         // Extract surface lines from modified slice data
-        af_top = [for (i = af_modified_slice) [i.x, i.y]],       // Top surface line
-        af_bottom = [for (i = af_modified_slice) [i.x, i.z]],    // Bottom surface line
+        af_top = [for (i = af_precomputed_slice) [i.x, i.y]],       // Top surface line
+        af_bottom = [for (i = af_precomputed_slice) [i.x, i.z]],    // Bottom surface line
         
         // Mean camber line - midline halfway between top and bottom surfaces
-        af_camber = [for (i = af_modified_slice) [i.x, (i.y + i.z) / 2]],
+        af_camber = [for (i = af_precomputed_slice) [i.x, (i.y + i.z) / 2]],
         
         // Create airfoil path from modified surface data
-        af_path = create_airfoil_path_from_slice( af_modified_slice ),
+        af_path = create_airfoil_path_from_slice( af_precomputed_slice ),
         
         // Calculate maximum thickness directly from slice data
         // Find the maximum difference between top and bottom surfaces
-        thickness_values = [for (i = af_modified_slice) abs(i.y - i.z)],
+        thickness_values = [for (i = af_precomputed_slice) abs(i.y - i.z)],
         max_thickness_normalized = max(thickness_values), // Maximum thickness in normalized coordinates
     ) object(
-        slice = af_modified_slice,
+        slice = af_precomputed_slice,
         trailing_edge_thickness = trailing_edge_thickness,
         
         top = af_top,
@@ -293,8 +291,9 @@ function create_airfoil_object(airfoil_slice_original, trailing_edge_thickness )
         // Airfoil geometry information calculated from slice data
         max_thickness_normalized = max_thickness_normalized, // Maximum thickness as fraction of chord (0-1)
 
-        render_path = af_path,
-        preview_path = resample_path(af_path, n=30, keep_corners=10, closed=true)   
+        presampled_path = ((Render_Mode_Fast_ResampleAeroFoil || $preview) 
+            ? resample_path(af_path, n=30, keep_corners=10, closed=true)
+            : af_path)
     );
 
 // Helper function to access airfoil surface data

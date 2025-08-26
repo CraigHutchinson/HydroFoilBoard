@@ -103,16 +103,18 @@ function CalculateWingSliceData(z_pos, wing_config) =
         airfoil = get_airfoil_at_nz(nz, wing_config.airfoil),
         
         // Calculate chord length for this position using chord profile
-        current_chord_mm = WingSliceChordLength(nz, wing_config.chord_profile),
+        chord_mm = WingSliceChordLength(nz, wing_config.chord_profile),
         
         // Calculate anhedral parameters for this position
         anhedral = AnhedralAtPosition(nz, wing_config.anhedral.start_nz, wing_config.wing_mm, wing_config.anhedral.degrees),
         
         // Get the base airfoil path using pre-computed paths in preview and per-slice thickness in render
-        scaled_path = get_airfoil_path( airfoil, current_chord_mm)
+        scaled_path = get_airfoil_path( airfoil, chord_mm)
     ) object(
+        z = z_pos,
         nz = nz,
-        current_chord_mm = current_chord_mm,
+        airfoil = airfoil,
+        chord_mm = chord_mm,
         anhedral = anhedral,
         scaled_path = scaled_path
     );
@@ -123,24 +125,20 @@ function CalculateWingSliceData(z_pos, wing_config) =
  * @param wing_config - Wing configuration object
  * @return final 3D path ready for skinning
  */
-function ApplyWingTransforms(slice_data, wing_config) =
+function ApplyWingTransforms( scaled_path, slice_data, wing_config) =
     let(
-        // Check if scaled_path has data (length > 0)
-        scaled_path = slice_data.scaled_path,
-        has_data = (is_list(scaled_path) && len(scaled_path) > 0),
         // If no data, return empty list
-        washout_path = has_data ? (
+        washout_path = 
             (wing_config.washout.degrees > 0 && slice_data.nz > wing_config.washout.start_nz) ?
-                ApplyWashoutToPath(scaled_path, slice_data.nz, wing_config.washout.start_nz, slice_data.current_chord_mm, wing_config.washout.degrees, wing_config.washout.pivot_nx)
-                : scaled_path
-        ) : [],
-        path_3d = has_data ? path3d(washout_path, 0) : [],
-        rotated_path_3d = (has_data && slice_data.anhedral.angle != 0) ? xrot(slice_data.anhedral.angle, p=path_3d ) : path_3d,
-        final_path = has_data ? move([
-            wing_config.center_line_nx * (wing_config.chord_profile.root_chord_mm - slice_data.current_chord_mm),
+                ApplyWashoutToPath(scaled_path, slice_data.nz, wing_config.washout.start_nz, slice_data.chord_mm, wing_config.washout.degrees, wing_config.washout.pivot_nx)
+                : scaled_path,
+        path_3d = path3d(washout_path, 0),
+        rotated_path_3d = (slice_data.anhedral.angle != 0) ? xrot(slice_data.anhedral.angle, p=path_3d ) : path_3d,
+        final_path = move([
+            wing_config.center_line_nx * (wing_config.chord_profile.root_chord_mm - slice_data.chord_mm),
             slice_data.anhedral.y_offset,
             slice_data.nz * wing_config.wing_mm
-        ], p=rotated_path_3d) : []
+        ], p=rotated_path_3d)
     ) final_path;
 
 /**
@@ -153,7 +151,7 @@ function ApplyWingTransforms(slice_data, wing_config) =
 function BuildWingProfile(z_pos, wing_config) =
     let(
         slice_data = CalculateWingSliceData(z_pos, wing_config)
-    ) ApplyWingTransforms(slice_data, wing_config);
+    ) ApplyWingTransforms(slice_data.scaled_path, slice_data, wing_config);
 
 /**
  * Generate z_positions array for wing sections
@@ -196,13 +194,13 @@ module CreateMaleConnector(base_path, connection_length, wall_thickness, z_start
             progress = i / 4,
             z_pos = z_start + progress * connection_length,
             // Taper from full size to (full size - wall_thickness * 2)
-            scale_factor = 0.75, //1 - (progress * wall_thickness * 2 / slice_data.current_chord_mm),
+            scale_factor = 0.75, //1 - (progress * wall_thickness * 2 / slice_data.chord_mm),
             scaled_path = scale([scale_factor, scale_factor], p=base_path)
         ) ApplyWingTransforms(
             object(
                 z_pos = z_pos,
                 nz = z_pos / wing_config.wing_mm,
-                current_chord_mm = slice_data.current_chord_mm,
+                current_chord_mm = slice_data.chord_mm,
                 anhedral = slice_data.anhedral,
                 base_path = scaled_path
             ), 
@@ -229,13 +227,13 @@ module CreateFemaleConnector(base_path, connection_length, wall_thickness, z_end
             progress = i / 4,
             z_pos = z_end - connection_length + progress * connection_length,
             // Taper from (full size + wall_thickness * 2) to full size
-            scale_factor = 1 + ((1 - progress) * wall_thickness * 2 / slice_data.current_chord_mm),
+            scale_factor = 1 + ((1 - progress) * wall_thickness * 2 / slice_data.chord_mm),
             scaled_path = scale([scale_factor, scale_factor], p=base_path)
         ) ApplyWingTransforms(
             object(
                 z_pos = z_pos,
                 nz = z_end,
-                current_chord_mm = slice_data.current_chord_mm,
+                current_chord_mm = slice_data.chord_mm,
                 anhedral = slice_data.anhedral,
                 base_path = scaled_path
             ), 
@@ -315,37 +313,50 @@ module CreateHollowWing(wing_config, wall_thickness=1.2, add_connections=false, 
     
     // Calculate z positions using the exposed function
     z_positions = CalculateWingZPositions(wing_config);
-    bounds = get_current_split_bounds(wing_config.wing_mm);
-    
-    // Calculate anhedral compensation rotation to make wing sit flat on print bed
-    bottom_slice = CalculateWingSliceData(bounds.start_z, wing_config);
+    start_z = z_positions[0];
+    end_z = z_positions[len(z_positions)-1];
+ 
+    wing_slices = [
+        for (z_pos = z_positions) 
+            CalculateWingSliceData(z_pos, wing_config)
+    ];
 
+    // Place on cut face
+    //  - anhedral compensation rotation to make wing sit flat on print bed
+   place_on_face_xrot = wing_slices[0].anhedral.angle;
+    
     // Apply compensation rotation around x-axis to make wing sit flat
-    xrot(-bottom_slice.anhedral.angle, cp = [0,0,bounds.start_z]) {
+    xrot(-place_on_face_xrot, cp = [0,0,start_z]) {
 
         // Create outer wing profiles (normal airfoil)
         outer_profiles = [
-            for (z_pos = z_positions) 
-                BuildWingProfile(z_pos, wing_config)
+            for (slice_data = wing_slices) 
+               ApplyWingTransforms(slice_data.scaled_path, slice_data, wing_config)
         ];
         
         // Create inner wing profiles (offset inward by wall thickness)
         // Stop hollow cavity wall_thickness distance from wing tip for solid tip structure
         hollow_end_z = wing_config.wing_mm - wall_thickness;
         
+        inner_profiles = [            
+            for (slice_data = wing_slices) 
+                let(
+                    // Calculate actual airfoil thickness at this chord length
+                    max_thickness_mm = slice_data.chord_mm * slice_data.airfoil.max_thickness_normalized,
+                                
+                    // If chord thickness is deep enough for a hollow core
+                    is_hollow_slice = slice_data.z < hollow_end_z 
+                        && max_thickness_mm > (wall_thickness*3),
+                 ) 
         // Filter out empty paths that occur when chord is too small for offset
-        inner_profiles_all = [
-            for (z_pos = z_positions) 
-                if (z_pos <= hollow_end_z) BuildHollowWingProfile(z_pos, wing_config, wall_thickness)
-                else []  // Empty profile for positions beyond hollow end
+                if ( is_hollow_slice ) 
+                    let(
+                        offset_path = offset(slice_data.scaled_path, r=-wall_thickness, closed=true )
+                    )
+                    if ( is_list(offset_path) && len(offset_path) > 0 )
+                        ApplyWingTransforms( offset_path, slice_data, wing_config)
         ];
         
-        // Filter out empty profiles (where offset failed due to small chord or beyond hollow end)
-        inner_profiles = [
-            for (i = [0:len(inner_profiles_all)-1])
-                if (len(inner_profiles_all[i]) > 2) inner_profiles_all[i]
-        ];
-
         // Use BOSL2-style diff() pattern for boolean operations
         diff("wing_remove", "wing_keep") {
             // Main wing shell - create as difference of outer and inner skins
@@ -369,14 +380,14 @@ module CreateHollowWing(wing_config, wall_thickness=1.2, add_connections=false, 
             tag("wing_keep") union() {}
             
             // Add male connector at end if needed
-            if (add_connections && bounds.end_z < wing_config.wing_mm && is_male_end) {
+            if (add_connections && end_z < wing_config.wing_mm && is_male_end) {
                 tag("wing_keep") {
-                    end_slice_data = CalculateWingSliceData(bounds.end_z, wing_config);
+                    end_slice_data = CalculateWingSliceData(end_z, wing_config);
                     CreateMaleConnector(
                         end_slice_data.base_path, 
                         connection_length, 
                         connection_wall_thickness, 
-                        bounds.end_z, 
+                        end_z, 
                         wing_config, 
                         end_slice_data
                     );
@@ -384,14 +395,14 @@ module CreateHollowWing(wing_config, wall_thickness=1.2, add_connections=false, 
             }
             
             // Subtract female connector at start if needed
-            if (add_connections && bounds.start_z > 0) {
+            if (add_connections && start_z > 0) {
                 tag("wing_remove") {
-                    start_slice_data = CalculateWingSliceData(bounds.start_z, wing_config);
+                    start_slice_data = CalculateWingSliceData(start_z, wing_config);
                     CreateFemaleConnector(
                         start_slice_data.base_path, 
                         connection_length, 
                         connection_wall_thickness, 
-                        bounds.start_z, 
+                        start_z, 
                         wing_config, 
                         start_slice_data
                     );
@@ -417,14 +428,14 @@ function BuildHollowWingProfile(z_pos, wing_config, wall_thickness) =
         // Get offset airfoil path (negative wall_thickness for inward offset)
         offset_path = get_offset_airfoil_path(
             get_airfoil_at_nz(slice_data.nz, wing_config.airfoil), 
-            slice_data.current_chord_mm, 
+            slice_data.chord_mm, 
             -wall_thickness
         ),
         
         // Create modified slice data with offset path
         hollow_slice_data = object(
             nz = slice_data.nz,
-            current_chord_mm = slice_data.current_chord_mm,
+            current_chord_mm = slice_data.chord_mm,
             anhedral = slice_data.anhedral,
             scaled_path = offset_path
         )
