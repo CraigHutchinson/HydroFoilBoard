@@ -179,8 +179,8 @@ function get_airfoil_path(airfoil, reference_chord_mm = 100) =
                         : full_path
                 ) sampled_path,
             // Scale the path to the current chord length
-        scaled_path = scale([reference_chord_mm, reference_chord_mm], p=base_path),
-    ) scaled_path;
+        outer_path = scale([reference_chord_mm, reference_chord_mm], p=base_path),
+    ) outer_path;
 
 /**
  * Create an offset (inward or outward) version of an airfoil path for hollow wing construction
