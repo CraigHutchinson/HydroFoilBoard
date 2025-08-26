@@ -151,7 +151,7 @@ function create_airfoil_path_from_slice(slice) =
         af_bottom = [for (i = slice) [i.x, i.z]],    // Bottom surface line
 
         // Reverse bottom surface to create continuous path
-        bottom_reversed = [for (i = [len(af_bottom) - 2 : -1 : 1]) af_bottom[i]],
+        bottom_reversed = [for (i = [len(af_bottom) - 1 : -1 : 0]) af_bottom[i]],
 
         // Combine top and bottom surfaces into single path
         combined_path = concat(af_top, bottom_reversed)

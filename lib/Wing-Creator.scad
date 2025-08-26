@@ -309,7 +309,8 @@ function AnhedralAtPosition(nz, anhedral_start_nz, wing_mm, anhedral_degrees) =
  * @param connection_wall_thickness - Wall thickness for connections in mm (default: 0.4mm)
  * @param is_male_end - Whether the end of this section should be male (true) or female (false)
  */
-module CreateHollowWing(wing_config, wall_thickness=1.2, add_connections=false, connection_length=4, connection_wall_thickness=0.4, is_male_end=true) {
+module CreateHollowWing(wing_config, wall_thickness=1.2, add_connections=false, connection_length=4, connection_wall_thickness=0.4, is_male_end=true) 
+{
     
     // Calculate z positions using the exposed function
     z_positions = CalculateWingZPositions(wing_config);
@@ -325,37 +326,37 @@ module CreateHollowWing(wing_config, wall_thickness=1.2, add_connections=false, 
     //  - anhedral compensation rotation to make wing sit flat on print bed
    place_on_face_xrot = wing_slices[0].anhedral.angle;
     
+    // Create outer wing profiles (normal airfoil)
+    outer_profiles = [
+        for (slice_data = wing_slices) 
+            ApplyWingTransforms(slice_data.scaled_path, slice_data, wing_config)
+    ];
+    
+    // Create inner wing profiles (offset inward by wall thickness)
+    // Stop hollow cavity wall_thickness distance from wing tip for solid tip structure
+    hollow_end_z = wing_config.wing_mm - wall_thickness;
+    
+    inner_profiles = [            
+        for (slice_data = wing_slices) 
+            let(
+                // Calculate actual airfoil thickness at this chord length
+                max_thickness_mm = slice_data.chord_mm * slice_data.airfoil.max_thickness_normalized,
+                            
+                // If chord thickness is deep enough for a hollow core
+                is_hollow_slice = slice_data.z < hollow_end_z 
+                    && max_thickness_mm > (wall_thickness*3),
+                ) 
+    // Filter out empty paths that occur when chord is too small for offset
+            if ( is_hollow_slice ) 
+                let(
+                    offset_path = offset(slice_data.scaled_path, r=-wall_thickness, closed=true )
+                )
+                if ( is_list(offset_path) && len(offset_path) > 0 )
+                    ApplyWingTransforms( offset_path, slice_data, wing_config)
+    ];
+
     // Apply compensation rotation around x-axis to make wing sit flat
     xrot(-place_on_face_xrot, cp = [0,0,start_z]) {
-
-        // Create outer wing profiles (normal airfoil)
-        outer_profiles = [
-            for (slice_data = wing_slices) 
-               ApplyWingTransforms(slice_data.scaled_path, slice_data, wing_config)
-        ];
-        
-        // Create inner wing profiles (offset inward by wall thickness)
-        // Stop hollow cavity wall_thickness distance from wing tip for solid tip structure
-        hollow_end_z = wing_config.wing_mm - wall_thickness;
-        
-        inner_profiles = [            
-            for (slice_data = wing_slices) 
-                let(
-                    // Calculate actual airfoil thickness at this chord length
-                    max_thickness_mm = slice_data.chord_mm * slice_data.airfoil.max_thickness_normalized,
-                                
-                    // If chord thickness is deep enough for a hollow core
-                    is_hollow_slice = slice_data.z < hollow_end_z 
-                        && max_thickness_mm > (wall_thickness*3),
-                 ) 
-        // Filter out empty paths that occur when chord is too small for offset
-                if ( is_hollow_slice ) 
-                    let(
-                        offset_path = offset(slice_data.scaled_path, r=-wall_thickness, closed=true )
-                    )
-                    if ( is_list(offset_path) && len(offset_path) > 0 )
-                        ApplyWingTransforms( offset_path, slice_data, wing_config)
-        ];
         
         // Use BOSL2-style diff() pattern for boolean operations
         diff("wing_remove", "wing_keep") {
@@ -375,9 +376,6 @@ module CreateHollowWing(wing_config, wall_thickness=1.2, add_connections=false, 
                 // Fallback to solid wing if no valid inner profiles
                 skin(outer_profiles, slices=0, refine=1, method="direct", sampling="segment");
             }
-            
-            // Add unconstrained positive geometry (connectors, etc.)
-            tag("wing_keep") union() {}
             
             // Add male connector at end if needed
             if (add_connections && end_z < wing_config.wing_mm && is_male_end) {
@@ -408,6 +406,7 @@ module CreateHollowWing(wing_config, wall_thickness=1.2, add_connections=false, 
                     );
                 }
             }
+            
         }
     }
 }
