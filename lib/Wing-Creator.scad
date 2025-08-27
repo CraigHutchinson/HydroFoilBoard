@@ -138,9 +138,10 @@ function CalculateWingSliceData(z_pos, wing_config, wall_thickness=undef) =
  * Apply all wing transforms to create final 3D profile
  * @param slice_data - Wing slice data from CalculateWingSliceData
  * @param wing_config - Wing configuration object
+ * @param z_offset - Z offset for the wing slice
  * @return final 3D path ready for skinning
  */
-function ApplyWingTransforms( outer_path, slice_data, wing_config) =
+function ApplyWingTransforms( outer_path, slice_data, wing_config, z_offset=0) =
     let(
         // If no data, return empty list
         washout_path = 
@@ -152,7 +153,7 @@ function ApplyWingTransforms( outer_path, slice_data, wing_config) =
         final_path = move([
             wing_config.center_line_nx * (wing_config.chord_profile.root_chord_mm - slice_data.chord_mm),
             slice_data.anhedral.y_offset,
-            slice_data.nz * wing_config.wing_mm
+            (slice_data.nz * wing_config.wing_mm) + z_offset
         ], p=rotated_path_3d)
     ) final_path;
 
@@ -348,10 +349,11 @@ module CreateHollowWing(wing_config, wall_thickness=1.2, add_connections=false, 
     ];
 
     // Create inner wing profiles (hollow airfoil)
+    // - We z_offset the start and end to remove thin geometry at end
     inner_profiles = [
         for (slice_data = wing_slices) 
             if ( slice_data.inner_path != undef )
-                ApplyWingTransforms(slice_data.inner_path, slice_data, wing_config)
+                ApplyWingTransforms(slice_data.inner_path, slice_data, wing_config, (slice_data.z ==start_z ? -0.1 : slice_data.z == end_z ? 0.1 : 0))
     ];
 
     // Apply compensation rotation around x-axis to make wing sit flat
