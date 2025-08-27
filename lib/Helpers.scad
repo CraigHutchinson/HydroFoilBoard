@@ -151,7 +151,7 @@ function create_airfoil_path_from_slice(slice) =
         af_bottom = [for (i = slice) [i.x, i.z]],    // Bottom surface line
 
         // Reverse bottom surface to create continuous path
-        bottom_reversed = [for (i = [len(af_bottom) - 1 : -1 : 0]) af_bottom[i]],
+        bottom_reversed = [for (i = [len(af_bottom) - 2 : -1 : 1]) af_bottom[i]],
 
         // Combine top and bottom surfaces into single path
         combined_path = concat(af_top, bottom_reversed)
@@ -223,7 +223,7 @@ function modify_airfoil_slice_for_printing(normalized_slice, min_thickness_mm = 
                 scaled_min_thickness = min_thickness_mm / max(reference_chord_mm,0.1), //< NOTE: Clampo to avoid division by zero at wing tip
 
                 // Calculate thickness adjustment needed
-                thickness_adjustment = current_thickness < scaled_min_thickness ? 
+                thickness_adjustment = (current_thickness < scaled_min_thickness) ? 
                     (scaled_min_thickness - current_thickness) / 2 : 0,
 
                 // Apply modification to upper and lower surfaces

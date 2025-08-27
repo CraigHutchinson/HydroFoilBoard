@@ -115,9 +115,15 @@ function CalculateWingSliceData(z_pos, wing_config, wall_thickness=undef) =
                     && (z_pos < (wing_config.wing_mm - wall_thickness))
                     && (chord_mm * airfoil.max_thickness_normalized) > (wall_thickness*3),
 
-        inner_path = has_inner_path
+        offset_path = has_inner_path
             ? offset(outer_path, r=-wall_thickness, closed=true )
-            : undef
+            : undef,
+
+        // Always resample inner paths
+        inner_path = (offset_path==undef || Render_Mode_Fast_ResampleAeroFoil || $preview) 
+                        ? offset_path //Already resampled or undefined
+                        : resample_path(offset_path, n=30, keep_corners=10, closed=true),
+
     ) object(
         z = z_pos,
         nz = nz,
