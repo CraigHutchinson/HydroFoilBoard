@@ -177,17 +177,23 @@ function BuildWingProfile(z_pos, wing_config) =
  */
 function CalculateWingZPositions(wing_config) =
     let(
-        wing_section_mm = wing_config.wing_mm / wing_config.sections,
+        fuselage_section_mm = wing_config.airfoil.root_change_nz * wing_config.wing_mm,
+        wing_section_mm = (wing_config.wing_mm - fuselage_section_mm) / wing_config.sections,
         bounds = get_current_split_bounds(wing_config.wing_mm)
     ) [
         // Start boundary (if not at z=0)
         bounds.start_z,
-        
+
+        if ( bounds.start_z==0 )
+            fuselage_section_mm,
+        if ( bounds.start_z==0 )
+            fuselage_section_mm*2,            
+
         // Normal sections within bounds
-        for (i = [0:wing_config.sections]) let(
-            z_pos = (get_wing_mode(wing_config) == 1) ? 
+        for (i = [1:wing_config.sections]) let(
+            z_pos = fuselage_section_mm + ((get_wing_mode(wing_config) == 1) ? 
                 wing_section_mm * i : 
-                QuadraticWingPosition(i, wing_config.sections, wing_config.wing_mm)
+                QuadraticWingPosition(i, wing_config.sections, wing_config.wing_mm-fuselage_section_mm))
         ) if (z_pos > bounds.start_z && z_pos < bounds.end_z) z_pos,
         
         // End boundary (if not at tip)

@@ -157,7 +157,7 @@ function create_airfoil_path_from_slice(slice) =
         combined_path = concat(af_top, bottom_reversed)
     ) combined_path;
 
-function normalize_airfoil(original_slice) = 
+function normalize_airfoil_slice(original_slice) = 
      [for (slice = original_slice)
             let(
                 nx = slice.x/100,
@@ -165,6 +165,9 @@ function normalize_airfoil(original_slice) =
                 nbottom = slice.z/100,
             ) [nx, ntop, nbottom]
         ];
+
+function mirror_airfoil_slice(airfoil_slice) =
+    [ for( slice = airfoil_slice )  [slice[0], abs(slice[1]), -abs(slice[1])] ];
 
 function get_airfoil_path(airfoil, reference_chord_mm = 100) =
     let(
@@ -243,22 +246,19 @@ function get_airfoil_at_nz(nz, airfoil_config) =
     let(
         // Choose appropriate path based on position
         airfoil = (nz > airfoil_config.tip_change_nz)  ?  airfoil_config.paths.tip :
-                (nz > airfoil_config.center_change_nz) ?  airfoil_config.paths.mid
-                                                       : airfoil_config.paths.root
+                (nz > airfoil_config.center_change_nz) ?  airfoil_config.paths.mid :
+                (nz > airfoil_config.root_change_nz) ?  airfoil_config.paths.root :
+                                                       airfoil_config.paths.fuselage
     ) airfoil;
 
 // Helper function to create a complete airfoil object from original airfoil data
-// airfoil_slice_original: Original airfoil slice data from airfoil library
+// af_nslice: Original airfoil slice data from airfoil library
 // trailing_edge_thickness: Minimum trailing edge thickness for 3D printing
 // Returns an object containing all airfoil components (top, bottom, mid, path, preview paths)
-function create_airfoil_object(airfoil_slice_original, trailing_edge_thickness ) = 
+function create_airfoil_object(af_nslice, trailing_edge_thickness ) = 
     let(
         // Precompute trailing edge thickness for preview
         reference_chord_mm = 100,
-
-        af_nslice = normalize_airfoil(airfoil_slice_original),
-        
-        //_ = echo("Normalized airfoil slice: ", af_nslice),
 
         // Modify airfoil slice data for 3D printing
         // NOTE: We only scale the source airfoil on preview but scale on slice-by-slice for render

@@ -16,7 +16,7 @@ include <lib/openscad-airfoil/e/e818.scad>
 
 /* [Print Settings] */
 Printer_BuildArea = [250, 250, 250]; // Printer build area in mm
-Printer_NozzleDiameter = 0.4; // Printer nozzle diameter in mm
+Printer_NozzleDiameter = 0.6; // Printer nozzle diameter in mm
 Printer_MinimumWallFraction = 0.65; // Minimum wall thickness for printing as fraction of nozzle diameter
 
 // Minimum trailing edge thickness for 3D printing compatibility
@@ -111,7 +111,7 @@ Main_Wing_Root_Chord_Scale_Factor = (4 - (Main_Wing_Eliptic_Pow - 2.0)/2)/PI;
 
 // Main Wing dimensions
 // Number of main wing sections (more = higher resolution)
-Main_Wing_Sections = (Render_Mode_Fast_WingSlices || $preview) ? 10 : 50; // [10:5:150]
+Main_Wing_Sections = (Render_Mode_Fast_WingSlices || $preview) ? 15 : 50; // [10:5:150]
 Main_Wing_mm = (Main_Wing_span / 2) * Build_Scale;         // Main wing length in mm (half span)
 Main_Wing_Root_Chord_MM = Main_Wing_Average_Chord * Main_Wing_Root_Chord_Scale_Factor * Build_Scale;   // Root chord length in mm (calculated from average chord)
 // Main wing tip chord length in mm (not relevant for elliptic wing)
@@ -145,8 +145,14 @@ center_airfoil_change_perc = 100; // [0:100]
 // Where to change to tip airfoil (100 = off)
 tip_airfoil_change_perc = 100; // [0:100]
 
+af_normalized_slice = normalize_airfoil_slice(airfoil_E818_slice());
+
+af_symetric_normalized_slice = mirror_airfoil_slice(af_normalized_slice);
+
 // Create airfoil object from E818 airfoil data
- af_root = create_airfoil_object(airfoil_E818_slice(), Trailing_Edge_Thickness);
+af_root = create_airfoil_object( af_normalized_slice, Trailing_Edge_Thickness);
+
+af_root_symetric = create_airfoil_object( af_symetric_normalized_slice, Trailing_Edge_Thickness);
 
 //Legacy support
 af_vec_path_root = af_root.presampled_path;
@@ -209,8 +215,10 @@ main_wing_config = object(
     airfoil = object(
         tip_change_nz = tip_airfoil_change_perc/100,
         center_change_nz = center_airfoil_change_perc/100,
+        root_change_nz = 10/Main_Wing_mm,
         // Pre-computed airfoil paths for performance
         paths = object(
+            fuselage = af_root_symetric,
             root = af_root,
             mid = af_root,
             tip = af_root,
@@ -296,8 +304,10 @@ rear_wing_config = object(
     airfoil = object(
         tip_change_nz = tip_airfoil_change_perc/100,
         center_change_nz = center_airfoil_change_perc/100,
+        root_change_nz = 10/Rear_Wing_mm,
         // Pre-computed airfoil paths for performance
         paths = object(
+            fuselage = af_root_symetric,
             root = af_root,
             mid = af_root,
             tip = af_root,
